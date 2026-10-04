@@ -54,7 +54,7 @@
 html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
 body {
   background: var(--bg); color: var(--ink);
-  font: 14px/1.45 var(--font-ui);
+  font: 0.875rem/1.45 var(--font-ui);
   -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent;
 }
 button, input, select, textarea { font: inherit; color: inherit; }
@@ -177,6 +177,34 @@ p { margin: 0; }
     grid-template-areas: "chart side" "chart ctrl";
   }
 }
+/* 电脑宽屏：三栏（左 价格舞台 + 棋盘，中 仪表 + 盈亏，右 订单），用宽度换高度，适合矮一些的笔记本浏览器窗口 */
+@media (min-width: 1200px) and (min-aspect-ratio: 3/2) and (min-height: 560px) {
+  #levelView {
+    grid-template-columns: minmax(0, 43fr) minmax(0, 31fr) minmax(0, 26fr);
+    grid-template-rows: minmax(0, 50fr) minmax(0, 12fr) minmax(0, 38fr);
+    grid-template-areas: "stage gauge inbox" "board gauge inbox" "board pnl inbox";
+  }
+}
+/* 大屏幕：整体字号放大 */
+@media (min-width: 1700px) and (min-height: 860px) { html { font-size: 17px; } }
+@media (min-width: 2200px) and (min-height: 1100px) { html { font-size: 19px; } }
+/* 鼠标：棋盘行可以矮一点；悬停有反馈 */
+@media (pointer: fine) {
+  .board { grid-auto-rows: minmax(32px, 1fr); }
+  .cell { min-height: 32px; }
+}
+@media (hover: hover) {
+  .btn:not(:disabled):hover, .ibtn:not(:disabled):hover, .seg button:not(:disabled):not([aria-pressed="true"]):hover,
+  .presets button:hover, .choice button:hover, .stepper button:not(:disabled):hover, .menu button:not(:disabled):hover,
+  .tb-level:hover, .tabbar button:hover, .stage-ctrl button:not(:disabled):hover {
+    box-shadow: inset 0 0 0 999px rgba(127, 140, 160, 0.14);
+  }
+  .cell:hover { border-color: var(--accent); }
+  .wf-col:hover { background: var(--panel-2); }
+  .help:hover span { border-color: var(--accent); color: var(--accent); }
+}
+.kbd { font-family: var(--font-num); font-size: 0.78rem; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; background: var(--panel-2); white-space: nowrap; }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 0.84rem; align-items: center; }
 @media (max-width: 640px), (max-height: 559px) {
   .top { gap: 4px 8px; padding-block: 4px; }
   .px { font-size: 1.2rem; }
@@ -248,7 +276,7 @@ p { margin: 0; }
 @keyframes floatup { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-26px); opacity: 0; } }
 
 /* ---------- 涨跌效果仪表 ---------- */
-.gbody { gap: 4px; }
+.gbody { gap: 4px; overflow-y: auto; }
 .g-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .g-val { font-size: 1.25rem; font-weight: 800; }
 .pill { font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; border: 1.5px solid currentColor; white-space: nowrap; }
@@ -1967,6 +1995,8 @@ function canvasCtx(c) {
   ctx.clearRect(0, 0, w, h);
   return { ctx, w, h };
 }
+// 画布字号跟着页面字号一起放大（大屏幕）
+function fpx(n) { return Math.round(n * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16) / 16 * 10) / 10; }
 function tokens() {
   const cs = getComputedStyle(document.documentElement);
   const t = n => cs.getPropertyValue(n).trim();
@@ -2014,7 +2044,7 @@ function drawStage() {
   const plotR = w - pad.r;
   const X = i => pad.l + (pts.length < 2 ? 1 : i / (pts.length - 1)) * (plotR - pad.l - 18);
   const Y = s => pad.t + (hi - s) / (hi - lo) * (h - pad.t - pad.b);
-  ctx.font = '11px ' + tk.font;
+  ctx.font = '' + fpx(11) + 'px ' + tk.font;
   ctx.textBaseline = 'middle';
   const strikes = gexOn ? gv.rows.map(x => x.K) : STRIKES;
   for (const k of strikes) {
@@ -2022,11 +2052,11 @@ function drawStage() {
     ctx.beginPath(); ctx.setLineDash(k === PIN ? [] : [3, 4]);
     ctx.strokeStyle = k === PIN ? tk.muted : tk.line; ctx.lineWidth = k === PIN ? 1.6 : 1;
     ctx.moveTo(pad.l, Y(k)); ctx.lineTo(w - 4, Y(k)); ctx.stroke();
-    ctx.fillStyle = tk.muted; ctx.textAlign = 'right'; ctx.font = (k === PIN ? '700 ' : '') + '11px ' + tk.font;
+    ctx.fillStyle = tk.muted; ctx.textAlign = 'right'; ctx.font = (k === PIN ? '700 ' : '') + '' + fpx(11) + 'px ' + tk.font;
     ctx.fillText(String(k), pad.l - 6, Y(k));
   }
   ctx.setLineDash([]);
-  ctx.font = '11px ' + tk.font;
+  ctx.font = '' + fpx(11) + 'px ' + tk.font;
   if (gexOn) drawGexOverlay(ctx, tk, gv, Y, lo, hi, w, pad);
   // 走势线
   ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(X(i), Y(p.S)) : ctx.moveTo(X(i), Y(p.S)));
@@ -2041,7 +2071,7 @@ function drawStage() {
   } else {
     ctx.beginPath(); ctx.arc(lx, ly, 4.5, 0, Math.PI * 2); ctx.fillStyle = tk.accent; ctx.fill();
   }
-  ctx.fillStyle = tk.ink; ctx.textAlign = 'left'; ctx.font = '800 12px ' + tk.font;
+  ctx.fillStyle = tk.ink; ctx.textAlign = 'left'; ctx.font = '800 ' + fpx(12) + 'px ' + tk.font;
   ctx.fillText(fmt.px(G.S), lx + 16, ly);
   // 本步对冲推动了多少
   if (L.impact && Math.abs(G.lastImpact || 0) >= 0.005) {
@@ -2050,11 +2080,11 @@ function drawStage() {
     ctx.beginPath(); ctx.moveTo(ax, y1); ctx.lineTo(ax, y2); ctx.stroke();
     const dir = Math.sign(y2 - y1) || 1;
     ctx.beginPath(); ctx.moveTo(ax - 4, y2 - dir * 6); ctx.lineTo(ax, y2); ctx.lineTo(ax + 4, y2 - dir * 6); ctx.stroke();
-    ctx.font = '700 10px ' + tk.font; ctx.textAlign = 'left';
+    ctx.font = '700 ' + fpx(10) + 'px ' + tk.font; ctx.textAlign = 'left';
     ctx.fillText(`对冲推动 ${G.lastImpact > 0 ? '+' : '−'}${fmt.px(Math.abs(G.lastImpact))}`, lx + 16, dir < 0 ? ly + 15 : ly - 13);
   }
   if (L.gammaInset) drawGammaInset(ctx, tk, w, h, pad);
-  ctx.fillStyle = tk.muted; ctx.font = '11px ' + tk.font; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+  ctx.fillStyle = tk.muted; ctx.font = '' + fpx(11) + 'px ' + tk.font; ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
   ctx.fillText(`剩 ${G.hist.length > 600 ? '…' : G.startMin} 分`, pad.l, h - 4);
   ctx.textAlign = 'right';
   ctx.fillText(G.minutes > 0 ? `剩 ${G.minutes} 分` : '到期', plotR - 18, h - 4);
@@ -2072,7 +2102,7 @@ function drawGexOverlay(ctx, tk, gv, Y, lo, hi, w, pad) {
     ctx.globalAlpha = 1;
     const tag = r.K === gv.callWall ? 'Call Wall' : r.K === gv.putWall ? 'Put Wall' : '';
     if (tag) {
-      ctx.fillStyle = tk.ink; ctx.font = '800 10px ' + tk.font; ctx.textAlign = 'right';
+      ctx.fillStyle = tk.ink; ctx.font = '800 ' + fpx(10) + 'px ' + tk.font; ctx.textAlign = 'right';
       ctx.fillText(tag, w - 8 - len - 4, y - 9 < 6 ? y + 12 : y - 9);
     }
   }
@@ -2080,10 +2110,10 @@ function drawGexOverlay(ctx, tk, gv, Y, lo, hi, w, pad) {
     const y = Y(gv.flip);
     ctx.setLineDash([6, 4]); ctx.strokeStyle = tk.warn; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - 4, y); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = tk.warn; ctx.font = '800 10px ' + tk.font; ctx.textAlign = 'left';
+    ctx.fillStyle = tk.warn; ctx.font = '800 ' + fpx(10) + 'px ' + tk.font; ctx.textAlign = 'left';
     ctx.fillText(`Gamma Flip ${fmt.px(gv.flip)}`, pad.l + 4, y - 8);
   }
-  ctx.font = '11px ' + tk.font;
+  ctx.font = '' + fpx(11) + 'px ' + tk.font;
 }
 function drawGammaInset(ctx, tk, w, h, pad) {
   const bw = Math.min(200, w * 0.4), bh = Math.min(90, h * 0.42), bx = pad.l + 6, by = h - pad.b - bh - 6;
@@ -2099,7 +2129,7 @@ function drawGammaInset(ctx, tk, w, h, pad) {
   const maxG = Math.max(10, ...hist.map(p => p.g), ...proj.map(p => p.g)) * 1.1;
   const ix = bx + 6, iw = bw - 12, iy = by + 18, ih = bh - 26;
   const X = m => ix + (G.startMin - m) / G.startMin * iw, Yg = g => iy + ih - g / maxG * ih;
-  ctx.fillStyle = tk.ink; ctx.font = '800 10px ' + tk.font; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = tk.ink; ctx.font = '800 ' + fpx(10) + 'px ' + tk.font; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   ctx.fillText('Gamma 随时间（股/每元）', bx + 6, by + 9);
   if (proj.length > 1) {
     ctx.beginPath(); ctx.setLineDash([4, 3]);
@@ -2110,7 +2140,7 @@ function drawGammaInset(ctx, tk, w, h, pad) {
     ctx.beginPath(); hist.forEach((p, i) => i ? ctx.lineTo(X(p.m), Yg(p.g)) : ctx.moveTo(X(p.m), Yg(p.g)));
     ctx.strokeStyle = tk.accent; ctx.lineWidth = 2; ctx.stroke();
   }
-  ctx.fillStyle = tk.muted; ctx.font = '10px ' + tk.font; ctx.textAlign = 'right';
+  ctx.fillStyle = tk.muted; ctx.font = '' + fpx(10) + 'px ' + tk.font; ctx.textAlign = 'right';
   ctx.fillText(fmt.int(maxG / 1.1), bx + bw - 6, by + 9);
 }
 function spawnFloat(d) {
@@ -2696,6 +2726,18 @@ function settingsHtml() {
     <div class="field"><span>颜色习惯</span><div class="seg" id="segColors"><button data-colors="cn" aria-pressed="${SET.colors === 'cn'}">红涨绿跌</button><button data-colors="us" aria-pressed="${SET.colors === 'us'}">绿涨红跌</button></div></div>
     <div class="field"><span>外观</span><div class="seg" id="segTheme"><button data-theme="system" aria-pressed="${SET.theme === 'system'}">跟随系统</button><button data-theme="light" aria-pressed="${SET.theme === 'light'}">浅色</button><button data-theme="dark" aria-pressed="${SET.theme === 'dark'}">深色</button></div></div>
     <p class="small-note">改波动率会让持仓市值立刻跳一下，这部分记在盈亏条的“其他”里。对冲推动的价格每步最多 1 元，模拟市场一分钟能消化的量。</p>
+    <h3>键盘快捷键（电脑）</h3>
+    <div class="keys">
+      <span class="kbd">空格</span><span>开始 / 暂停</span>
+      <span class="kbd">→</span><span>单步（时间走 1 分钟）</span>
+      <span class="kbd">1</span><span>速度 1x / 2x / 5x（按 1、2、5）</span>
+      <span class="kbd">M</span><span>切换自动 / 手动</span>
+      <span class="kbd">↑ ↓</span><span>手动模式下拨动股价 ±0.25（按住 Shift 为 ±1）</span>
+      <span class="kbd">Z</span><span>调回 0</span>
+      <span class="kbd">A / X</span><span>接单 / 拒绝</span>
+      <span class="kbd">L</span><span>打开交易记录</span>
+      <span class="kbd">Esc</span><span>关闭弹窗、卡片、抽屉</span>
+    </div>
     <h3 id="testSummary">自检</h3>
     <ul class="tests" id="tests"></ul>
     <button class="btn small" data-act="retest">重新自检</button>`;
@@ -2782,7 +2824,7 @@ function levelMenu() {
 const HELP = {
   stage: () => kindOf() === 'gex'
     ? '<h3>价格舞台 · GEX</h3><p>蓝线是股价走过的路，横向虚线是各个行权价。</p><p>右侧的横条是每个行权价的 GEX：全体做市商在这个行权价上，股价每动 1 块要被迫买卖多少股。蓝色 = 做市商做多 Gamma（逆着涨跌买卖，把价格往回拉），橙色 = 做空 Gamma（顺着涨跌买卖，推着价格跑）。</p><p>橙色水平虚线是 Gamma Flip：总 GEX 在这里由正变负。价格点旁的小箭头是这一步对冲把价格推动了多少。</p>'
-    : '<h3>价格舞台</h3><p>蓝线是股价走过的路，横向虚线是各个行权价，767 加粗。</p><p>切到“手动”后，按住右端的圆点上下拖，就是你在拨动股价；角落的 −1 / −0.25 / +0.25 / +1 按钮做小幅调整。按 ±1 后，仪表会对比“幽灵指针的预测”和实际结果。</p><p>价格点旁飘出的数字是这一次的变动。第 5 关起，小箭头表示这一步对冲把价格推动了多少。</p>',
+    : '<h3>价格舞台</h3><p>蓝线是股价走过的路，横向虚线是各个行权价，767 加粗。</p><p>切到“手动”后，按住右端的圆点上下拖，就是你在拨动股价；角落的 −1 / −0.25 / +0.25 / +1 按钮做小幅调整。用电脑时，也可以在舞台上滚动鼠标滚轮，或按键盘 ↑ ↓（每次 0.25，按住 Shift 每次 1）。按 ±1 后，仪表会对比“幽灵指针的预测”和实际结果。</p><p>价格点旁飘出的数字是这一次的变动。第 5 关起，小箭头表示这一步对冲把价格推动了多少。</p>',
   gauge: () => '<h3>涨跌效果仪表</h3><p><b>指针</b>：整体涨跌效果相当于多少股，这就是 Delta。左边是做空、右边是做多。比如指针在“做空 5,000 股”，股价每涨 1 块，总盈亏大约 −5,000 元。期权不是股票，这是涨跌效果，不是真的持有股票。</p><p><b>两根幽灵指针</b>：股价 +1 和 −1 后，指针会自动跑到哪。两者之间的距离就是 Gamma：股价每动 1 块，指针自动移动多少股。</p><p><b>做空 Gamma</b>：股价一动，指针总往对你不利的方向跑，所以对冲只能涨了买、跌了卖。<b>做多 Gamma</b> 正好相反。</p><p><b>沙漏</b>：每过一步（1 分钟），时间损耗让你赚/亏多少钱，这就是 Theta。</p><p><b>调回 0</b>：用股票把指针拉回中间。<b>数量条</b>：把“拖我”往右拖是买股票、往左拖是卖股票，蓝色预览指针显示成交后指针会到哪，松手后再确认。</p>',
   board: () => kindOf() === 'gex'
     ? '<h3>GEX 棋盘</h3><p>每一行是一个行权价，左格 Call、右格 Put。格子里是未平仓张数和做市商的站位（假设）。</p><p>格子颜色越深，这一格的 GEX 越大；橙色表示做市商在这一格做空 Gamma。点格子看这一格的 GEX：股价每动 1 块，全体做市商因为它要买卖多少股。</p>'
@@ -2828,7 +2870,7 @@ function drawLab(st, v) {
   const curveMax = Math.max(1, ...cur.pts.map(p => Math.max(Math.abs(p.v), p.real == null ? 0 : Math.abs(p.real))));
   const y0 = pad.t + (h - pad.t - pad.b) / 2, half = (h - pad.t - pad.b) / 2 * 0.92;
   const Yb = val => y0 - val / barMax * half, Yc = val => y0 - val / curveMax * half;
-  ctx.font = '10px ' + tk.font; ctx.lineWidth = 1;
+  ctx.font = '' + fpx(10) + 'px ' + tk.font; ctx.lineWidth = 1;
   for (const f of [-1, -0.5, 0.5, 1]) {
     ctx.strokeStyle = tk.line; ctx.beginPath(); ctx.moveTo(pad.l, y0 - f * half); ctx.lineTo(w - pad.r, y0 - f * half); ctx.stroke();
   }
@@ -2858,12 +2900,12 @@ function drawLab(st, v) {
       hits.push({ K: rw.K, type, x0, x1: x0 + bw });
     }
   }
-  ctx.fillStyle = tk.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.font = '10px ' + tk.font;
+  ctx.fillStyle = tk.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.font = '' + fpx(10) + 'px ' + tk.font;
   let lastX = -1e9;
   for (const k of ks) { const x = X(k); if (x - lastX >= 28) { ctx.fillText(String(k), x, h - pad.b + 14); lastX = x; } }
   // 墙
   const flag = (K, text, color, ty) => {
-    ctx.font = '800 10px ' + tk.font;
+    ctx.font = '800 ' + fpx(10) + 'px ' + tk.font;
     const half = ctx.measureText(text).width / 2 + 2;
     const x = Math.max(half + 2, Math.min(w - half - 2, X(K)));
     ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -2884,7 +2926,7 @@ function drawLab(st, v) {
   const vline = (x, color, label, yLab) => {
     ctx.strokeStyle = color; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(X(x), pad.t); ctx.lineTo(X(x), h - pad.b); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = color; ctx.font = '800 10px ' + tk.font; ctx.textAlign = X(x) > w - pad.r - 70 ? 'right' : 'left'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = color; ctx.font = '800 ' + fpx(10) + 'px ' + tk.font; ctx.textAlign = X(x) > w - pad.r - 70 ? 'right' : 'left'; ctx.textBaseline = 'middle';
     ctx.fillText(label, X(x) + (ctx.textAlign === 'left' ? 4 : -4), yLab);
   };
   if (v.flip != null && !hide.flip) vline(v.flip, tk.warn, `Gamma Flip ${fmt.px(v.flip)}`, h - pad.b - 10);
@@ -2895,7 +2937,7 @@ function drawLab(st, v) {
   ctx.beginPath(); ctx.moveTo(px, pad.t + 4); ctx.lineTo(px, h - pad.b); ctx.stroke();
   ctx.beginPath(); ctx.arc(px, Yc(v.total), 5, 0, Math.PI * 2); ctx.fillStyle = tk.ink; ctx.fill();
   const label = `◀ 股价 ${fmt.px(st.S)} ▶`;
-  ctx.font = '800 11px ' + tk.font;
+  ctx.font = '800 ' + fpx(11) + 'px ' + tk.font;
   const lw = ctx.measureText(label).width + 14, lx = Math.max(2, Math.min(w - lw - 2, px - lw / 2)), ly = h - pad.b + 3;
   ctx.fillStyle = tk.accent; roundRect(ctx, lx, ly, lw, 22, 8); ctx.fill();
   ctx.fillStyle = tk.panel; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, lx + lw / 2, ly + 11);
@@ -3410,6 +3452,36 @@ function onCardUp() {
   else { s.el.classList.add('snap'); s.el.style.transform = ''; s.el.style.opacity = ''; render(); }
 }
 
+// 键盘快捷键（电脑）
+function onKey(e) {
+  if (e.key === 'Escape') {
+    if (!$('modal').hidden) { closeModal(); render(); }
+    else if (UI.pop) closePop();
+    else if (UI.drawer) closeDrawer();
+    return;
+  }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const tag = document.activeElement && document.activeElement.tagName;
+  if (/INPUT|TEXTAREA|SELECT/.test(tag) || !$('modal').hidden || !G) return;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  const inLevel = UI.view === 'level' && kindOf() !== 'quiz';
+  if (k === 'l') { openDrawer('log'); return; }
+  if (!inLevel) return;
+  const trade = kindOf() === 'trade';
+  if (k === ' ' && tag !== 'BUTTON') { e.preventDefault(); if (UI.running) { stop(); render(); } else play(); }
+  else if (k === 'ArrowRight') { e.preventDefault(); if (!UI.running) doStep(); }
+  else if (k === '1' || k === '2' || k === '5') setSpeed(Number(k));
+  else if (k === 'm') setMode(G.mode === 'auto' ? 'manual' : 'auto');
+  else if ((k === 'ArrowUp' || k === 'ArrowDown') && G.mode === 'manual' && !G.ended) {
+    e.preventDefault();
+    const d = (k === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 1 : 0.25);
+    if (Math.abs(d) === 1) Core.nudge(G, d); else { Core.move(G, Math.max(1, G.S + d), G.minutes); G.lastCheck = null; }
+    render();
+  }
+  else if (k === 'z' && trade && !G.ended) { $('btnZero').click(); }
+  else if (k === 'a' && trade && G.order) acceptOrder();
+  else if (k === 'x' && trade && G.order) { Core.rejectOrder(G); render(); }
+}
 function bind() {
   $('btnStep').innerHTML = ICON.step; $('btnSettings').innerHTML = ICON.gear; $('btnLog').innerHTML = ICON.list; $('drClose').innerHTML = ICON.close;
   $('btnPlay').onclick = () => { if (UI.running) { stop(); render(); } else play(); };
@@ -3577,19 +3649,30 @@ function bind() {
   $('labCtrl').addEventListener('change', onLabCtrlInput);
   onTap($('labSide'), onLabSide);
 
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') {
-      if (!$('modal').hidden) { closeModal(); render(); }
-      else if (UI.pop) closePop();
-      else if (UI.drawer) closeDrawer();
-      return;
-    }
-    const tag = document.activeElement && document.activeElement.tagName;
-    if (e.key === ' ' && !/INPUT|TEXTAREA|SELECT|BUTTON/.test(tag) && $('modal').hidden && UI.view === 'level') {
-      e.preventDefault();
-      if (UI.running) { stop(); render(); } else play();
-    }
+  document.addEventListener('keydown', onKey);
+  // 电脑：在价格舞台上滚动滚轮拨动股价（手动模式）
+  $('stageWrap').addEventListener('wheel', e => {
+    if (!G || G.ended || G.mode !== 'manual' || kindOf() === 'quiz') return;
+    e.preventDefault();
+    const d = (e.deltaY < 0 ? 1 : -1) * (e.shiftKey ? 1 : 0.25);
+    Core.move(G, Math.max(1, G.S + d), G.minutes); G.lastCheck = null;
+    scheduleRender();
+  }, { passive: false });
+  // 鼠标指针形状：能拖的地方给出提示
+  $('stageWrap').addEventListener('pointermove', e => {
+    if (UI.stageDrag || e.pointerType !== 'mouse') return;
+    const g = UI.stageGeom; if (!g || !G) return;
+    const { x, y } = stagePt(e);
+    $('stage').style.cursor = G.mode === 'manual' && (Math.hypot(x - g.lx, y - g.ly) < 48 || x > g.lx - 24) ? 'ns-resize' : 'default';
   });
+  $('labCanvas').addEventListener('pointermove', e => {
+    const st = activeLab(), L = st && st._layout;
+    if (!L || st._drag || e.pointerType !== 'mouse') return;
+    const { x, y } = labPoint(e);
+    const hit = L.hits.find(hb => x >= hb.x0 - 3 && x <= hb.x1 + 3 && y > L.pad.t && y < L.h - L.pad.b);
+    $('labCanvas').style.cursor = Math.abs(x - L.X(st.S)) < 16 || !hit ? 'ew-resize' : (st.readOnly ? 'pointer' : 'ns-resize');
+  });
+  document.querySelectorAll('.ibtn[aria-label]').forEach(b => { b.title = b.getAttribute('aria-label'); });
   if (window.ResizeObserver) new ResizeObserver(() => { if (G) { if (UI.pop) placePop(); scheduleRender(); } }).observe($('main'));
   window.addEventListener('resize', () => G && scheduleRender());
   if (window.matchMedia) {
