@@ -1,0 +1,1694 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>做市商模拟器</title>
+<style>
+/* 布局：手机单列，从上到下是“操作 → 风险 → 下单 → 图表 → 持仓 → 盈亏 → 记录”；≥960px 时左列操作与风险、右列图表与账本 */
+:root {
+  --bg: #e8ecf0;
+  --panel: #f9fafb;
+  --ink: #15202b;
+  --muted: #5a6877;
+  --line: #d2d9e1;
+  --chip: #e0e6ed;
+  --accent: #2257b8;
+  --accent-ink: #ffffff;
+  --accent-soft: #dbe5f7;
+  --red: #cc3325;
+  --green: #0e8753;
+  --warn: #9a6200;
+  --warn-soft: #f6ead2;
+  --scrim: rgba(15, 22, 30, 0.55);
+  --pos: var(--red);
+  --neg: var(--green);
+  --font-ui: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Roboto Mono", monospace;
+  --r: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1318; --panel: #161e26; --ink: #e4ebf2; --muted: #93a2b2; --line: #2a3541; --chip: #222d38;
+    --accent: #7aa2ff; --accent-ink: #0b1220; --accent-soft: #1f2d48;
+    --red: #ff6a5c; --green: #3bcf8b; --warn: #f0b73c; --warn-soft: #3a2f17; --scrim: rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1318; --panel: #161e26; --ink: #e4ebf2; --muted: #93a2b2; --line: #2a3541; --chip: #222d38;
+  --accent: #7aa2ff; --accent-ink: #0b1220; --accent-soft: #1f2d48;
+  --red: #ff6a5c; --green: #3bcf8b; --warn: #f0b73c; --warn-soft: #3a2f17; --scrim: rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+/* 颜色习惯：默认红涨绿跌（做多/盈利 = 红）；可切换为绿涨红跌 */
+:root[data-colors="us"] { --pos: var(--green); --neg: var(--red); }
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.55 var(--font-ui);
+  -webkit-text-size-adjust: 100%;
+}
+body.has-order { padding-bottom: 260px; }
+button, input, select { font: inherit; color: inherit; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+h2 { font-size: 1.02rem; font-weight: 700; letter-spacing: 0.02em; }
+h3 { font-size: 0.92rem; font-weight: 700; }
+p { margin: 0; }
+.num, .mvalue, td, .pv dd, .px { font-variant-numeric: tabular-nums; }
+.pos { color: var(--pos); }
+.neg { color: var(--neg); }
+.muted { color: var(--muted); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- 顶栏 ---------- */
+.topbar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  background: var(--panel); border-bottom: 1px solid var(--line);
+  padding: 8px 16px;
+  display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center;
+}
+.quote { display: grid; line-height: 1.15; }
+.sym { font-size: 0.72rem; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.px { font-family: var(--font-num); font-size: 1.5rem; font-weight: 700; }
+.chg { font-family: var(--font-num); font-size: 0.8rem; }
+#spark { width: 100%; height: 40px; min-width: 0; display: block; }
+.clock { text-align: right; display: grid; line-height: 1.25; }
+.clock b { font-family: var(--font-num); font-size: 1.05rem; }
+.clock span { font-size: 0.75rem; color: var(--muted); }
+
+/* ---------- 主体 ---------- */
+.wrap { padding: 12px 16px 32px; max-width: 1240px; margin: 0 auto; display: grid; gap: 12px; }
+.levels { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.levels::-webkit-scrollbar { display: none; }
+.levels button {
+  flex: 0 0 auto; border: 1px solid var(--line); background: var(--panel); border-radius: 999px;
+  padding: 7px 12px; font-size: 0.85rem; cursor: pointer; min-height: 38px; white-space: nowrap;
+}
+.levels button b { font-family: var(--font-num); margin-right: 4px; }
+.levels button[aria-current="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.levels .help { margin-left: auto; }
+.grid { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+.col { display: grid; gap: 12px; align-content: start; min-width: 0; }
+@media (min-width: 960px) {
+  .grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr); }
+}
+.panel {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 14px; display: grid; gap: 10px; min-width: 0;
+}
+.panel > * { min-width: 0; }
+.panel > header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.note { font-size: 0.8rem; color: var(--muted); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row > * { min-width: 0; }
+
+.btn {
+  border: 1px solid var(--line); background: var(--chip); border-radius: 8px;
+  min-height: 44px; padding: 8px 14px; cursor: pointer; font-weight: 600;
+}
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); min-width: 96px; }
+.btn.buy { background: var(--pos); border-color: var(--pos); color: #fff; flex: 1; }
+.btn.sell { background: var(--neg); border-color: var(--neg); color: #fff; flex: 1; }
+.btn.ghost { background: transparent; }
+.btn.wide { width: 100%; }
+.btn.small { min-height: 34px; padding: 4px 10px; font-size: 0.82rem; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--chip); }
+.seg button { border: 0; background: transparent; min-height: 42px; padding: 6px 12px; cursor: pointer; font-weight: 600; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.seg.wrap-seg { display: flex; flex-wrap: wrap; }
+.seg.wrap-seg button { flex: 1 1 auto; font-size: 0.85rem; }
+
+.switch { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; cursor: pointer; font-size: 0.92rem; }
+.switch input { width: 22px; height: 22px; accent-color: var(--accent); margin: 0; }
+
+.nudges { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.nudges button { min-height: 44px; border: 1px solid var(--line); background: var(--chip); border-radius: 8px; font-family: var(--font-num); font-weight: 700; cursor: pointer; }
+input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 32px; }
+
+/* ---------- 风险面板 ---------- */
+.hint { background: var(--accent-soft); border-radius: 8px; padding: 8px 10px; font-size: 0.88rem; }
+.hint.warn { background: var(--warn-soft); }
+.metric { display: grid; gap: 2px; padding-top: 10px; border-top: 1px solid var(--line); }
+.mlabel { font-size: 0.82rem; color: var(--muted); }
+.term { display: inline-block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; padding: 1px 6px; border-radius: 4px; background: var(--chip); color: var(--ink); margin-left: 6px; vertical-align: 1px; }
+.mvalue { font-size: 1.32rem; font-weight: 700; line-height: 1.3; }
+.mvalue .unit { font-size: 0.85rem; font-weight: 600; color: var(--muted); margin-left: 4px; }
+.mvalue .tag { font-size: 0.75rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; margin-left: 8px; vertical-align: 3px; }
+.mexp { font-size: 0.86rem; }
+.formula { font-size: 0.76rem; color: var(--muted); }
+
+/* ---------- 预览 ---------- */
+.pv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.pv { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: grid; gap: 6px; }
+.pvhead { font-weight: 700; font-family: var(--font-num); }
+.pv dl { margin: 0; display: grid; gap: 4px; }
+.pv dt { font-size: 0.76rem; color: var(--muted); }
+.pv dd { margin: 0 0 4px; font-weight: 700; }
+.check { font-size: 0.84rem; border-left: 3px solid var(--accent); padding-left: 8px; }
+
+/* ---------- 下单区 ---------- */
+.tk { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.tk:first-of-type { border-top: 0; padding-top: 0; }
+.tk input[type="number"], .tk select {
+  min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 6px 10px; width: 110px;
+}
+.tk select { width: 96px; }
+.quoteline { font-size: 0.84rem; font-family: var(--font-num); }
+.need { font-size: 0.85rem; background: var(--bg); border-radius: 8px; padding: 8px 10px; display: grid; gap: 6px; }
+.lock { font-size: 0.85rem; background: var(--warn-soft); border-radius: 8px; padding: 8px 10px; }
+#chainBox { display: block; min-width: 0; }
+#chainBox > .tablewrap { margin: 6px 0; }
+details > summary { cursor: pointer; font-weight: 700; min-height: 32px; display: flex; align-items: center; }
+
+/* ---------- 表格 ---------- */
+.tablewrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.82rem; }
+th, td { padding: 7px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+th { font-size: 0.72rem; color: var(--muted); font-weight: 700; background: var(--bg); position: sticky; top: 0; }
+th:first-child, td:first-child { text-align: left; }
+tr:last-child td { border-bottom: 0; }
+td.num, td { font-family: var(--font-num); }
+td.txt { font-family: var(--font-ui); }
+.chain td[data-pick] { cursor: pointer; }
+.chain td[data-pick]:hover { background: var(--accent-soft); }
+.chain tr.atm td { font-weight: 700; }
+.chain td.sel { background: var(--accent-soft); outline: 1px solid var(--accent); }
+.pos-table { min-width: 640px; }
+.foot td { font-weight: 700; background: var(--bg); }
+
+/* ---------- 盈亏 ---------- */
+.total { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.total b { font-family: var(--font-num); font-size: 1.5rem; }
+.pnl-list { display: grid; gap: 0; }
+.pnl-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 8px 0; border-top: 1px solid var(--line); align-items: baseline; }
+.pnl-row b { font-family: var(--font-num); font-size: 1rem; }
+.pnl-row small { grid-column: 1 / -1; color: var(--muted); font-size: 0.76rem; }
+.pnl-row.sum { border-top: 2px solid var(--ink); }
+
+/* ---------- 图表 ---------- */
+.chart { display: grid; gap: 4px; }
+.chart canvas { width: 100%; height: 170px; display: block; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 0.74rem; color: var(--muted); }
+.legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--accent); vertical-align: middle; margin-right: 4px; }
+.legend i.dash { border-top-style: dashed; border-color: var(--warn); }
+.legend i.strike { border-color: var(--muted); border-top-width: 1px; border-top-style: dotted; }
+
+/* ---------- 交易记录 ---------- */
+.log { list-style: none; margin: 0; padding: 0; display: grid; max-height: 360px; overflow-y: auto; }
+.log li { padding: 7px 0; border-top: 1px solid var(--line); font-size: 0.84rem; display: grid; gap: 2px; }
+.log li:first-child { border-top: 0; }
+.log .when { font-family: var(--font-num); font-size: 0.72rem; color: var(--muted); }
+.flag { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 4px; padding: 0 6px; margin-left: 4px; color: #fff; }
+.flag.bad { background: var(--neg); }
+.flag.good { background: var(--pos); }
+:root[data-colors="us"] .flag.bad { background: var(--neg); }
+
+/* ---------- 设置 ---------- */
+.settings-grid { display: grid; gap: 10px; }
+.field { display: grid; gap: 4px; font-size: 0.86rem; }
+.field input[type="number"] { min-height: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 6px 10px; width: 140px; }
+.tests { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 0.82rem; }
+.tests li { font-family: var(--font-num); overflow-wrap: anywhere; }
+
+/* ---------- 客户订单卡 ---------- */
+.ordercard {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  padding: 0 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  pointer-events: none;
+}
+.ordercard .card {
+  pointer-events: auto; max-width: 560px; margin: 0 auto; background: var(--panel);
+  border: 2px solid var(--accent); border-radius: 14px; padding: 14px; display: grid; gap: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+.ordercard .ask { font-size: 1.15rem; font-weight: 800; }
+.ordercard .det { font-size: 0.84rem; display: grid; gap: 2px; }
+.ordercard .row .btn { flex: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .ordercard .card { animation: rise 0.25s ease-out; }
+  @keyframes rise { from { transform: translateY(16px); } to { transform: none; } }
+}
+
+/* ---------- 弹窗 ---------- */
+.modal { position: fixed; inset: 0; z-index: 40; background: var(--scrim); display: grid; place-items: center; padding: 16px; }
+.sheet {
+  background: var(--panel); border-radius: 14px; max-width: 560px; width: 100%; max-height: 88vh; overflow-y: auto;
+  padding: 20px 18px; display: grid; gap: 12px;
+}
+.sheet .eyebrow { font-size: 0.74rem; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.sheet h2 { font-size: 1.35rem; }
+.sheet h3 { margin-top: 4px; color: var(--accent); }
+.sheet p, .sheet li { font-size: 0.93rem; max-width: 62ch; }
+.sheet ul, .sheet ol { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+.sheet .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.sheet .stat { background: var(--bg); border-radius: 8px; padding: 8px 10px; display: grid; }
+.sheet .stat span { font-size: 0.74rem; color: var(--muted); }
+.sheet .stat b { font-family: var(--font-num); font-size: 1.05rem; }
+.sheet .row .btn { flex: 1; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="quote">
+    <span class="sym">SPY（模拟）</span>
+    <span class="px" id="px">767.00</span>
+    <span class="chg" id="chg">+0.00</span>
+  </div>
+  <canvas id="spark" aria-label="股价走势小图"></canvas>
+  <div class="clock">
+    <span>距到期</span>
+    <b id="tleft">390 分钟</b>
+    <span id="lvlTag">第 1 关</span>
+  </div>
+</header>
+
+<main class="wrap">
+  <nav class="levels" id="levelTabs" aria-label="关卡"></nav>
+
+  <div class="grid">
+    <div class="col">
+      <!-- 控制区 -->
+      <section class="panel" id="controls">
+        <header><h2 id="lvlTitle">第 1 关</h2><span class="note" id="stepInfo"></span></header>
+        <div class="row">
+          <button class="btn primary" id="btnPlay">开始</button>
+          <button class="btn" id="btnStep">单步（+1 分钟）</button>
+          <div class="seg" id="segSpeed" role="group" aria-label="速度">
+            <button data-v="1">1x</button><button data-v="2">2x</button><button data-v="5">5x</button>
+          </div>
+        </div>
+        <div class="row">
+          <div class="seg" id="segMode" role="group" aria-label="股价模式">
+            <button data-v="auto">自动走</button><button data-v="manual">手动拖</button>
+          </div>
+          <button class="btn" id="btnNews">突发新闻（跳空）</button>
+        </div>
+        <div id="manualBox" class="row" hidden>
+          <div class="nudges" style="width:100%">
+            <button data-d="-1">−1</button><button data-d="-0.25">−0.25</button><button data-d="0.25">+0.25</button><button data-d="1">+1</button>
+          </div>
+          <input type="range" id="slider" min="747" max="787" step="0.05" aria-label="拖动股价">
+          <p class="note">手动模式：股价只听你的，时间要按“单步”才会走。按 ±1 后，下面的“假如”预览会和实际变化做对比。</p>
+        </div>
+        <div class="row">
+          <label class="switch"><input type="checkbox" id="chkAuto"><span>自动 Delta 对冲（每步用股票把涨跌效果调回 0）</span></label>
+        </div>
+        <div class="row">
+          <label class="switch"><input type="checkbox" id="chkPause"><span>来客户订单时自动暂停</span></label>
+        </div>
+        <div id="biasBox" class="field"></div>
+        <div class="row">
+          <button class="btn ghost" id="btnRestart">重新开始本关</button>
+          <button class="btn ghost" id="btnEnd">提前结束（按当前市值算）</button>
+        </div>
+      </section>
+
+      <!-- 风险面板 -->
+      <section class="panel" id="risk">
+        <header><h2>风险面板</h2><span class="note">你现在怕什么</span></header>
+        <p class="hint" id="hint"></p>
+        <div class="metric">
+          <div class="mlabel">整体涨跌效果相当于多少股<span class="term">DELTA</span></div>
+          <div class="mvalue" id="vDelta"></div>
+          <div class="mexp" id="eDelta"></div>
+          <div class="formula">算法：每个持仓的 Delta × 100 × 张数加起来（买入为正、卖出为负），股票 1 股算 1。</div>
+        </div>
+        <div class="metric">
+          <div class="mlabel">股价每动 1 块，上面这个股数会自动变多少股<span class="term">GAMMA</span></div>
+          <div class="mvalue" id="vGamma"></div>
+          <div class="mexp" id="eGamma"></div>
+          <div class="formula">算法：每个期权的 Gamma × 100 × 张数加起来。股票的 Gamma 是 0，所以买卖股票改变不了它。</div>
+        </div>
+        <div class="metric">
+          <div class="mlabel">每过一步（1 分钟），时间损耗让你赚/亏多少钱<span class="term">THETA</span></div>
+          <div class="mvalue" id="vTheta"></div>
+          <div class="mexp" id="eTheta"></div>
+        </div>
+      </section>
+
+      <!-- 假如预览 -->
+      <section class="panel" id="preview">
+        <header><h2>假如股价 ±1</h2><span class="note">不含时间流逝，按完整重新定价计算</span></header>
+        <div class="pv-grid"><div class="pv" id="pvUp"></div><div class="pv" id="pvDn"></div></div>
+        <p class="note" id="pvNote"></p>
+        <p class="check" id="pvCheck" hidden></p>
+      </section>
+
+      <!-- 下单区 -->
+      <section class="panel" id="ticket">
+        <header><h2>下单区</h2><span class="note">你主动对冲</span></header>
+        <div class="tk">
+          <h3>股票 SPY</h3>
+          <p class="quoteline" id="stkQuote"></p>
+          <div class="row">
+            <input id="stkQty" type="number" inputmode="numeric" min="1" step="1" value="100" aria-label="股数">
+            <button class="btn buy" id="stkBuy">买入</button>
+            <button class="btn sell" id="stkSell">卖出</button>
+          </div>
+          <button class="btn wide" id="stkZero">一键调回 0</button>
+          <p class="note" id="stkZeroInfo"></p>
+        </div>
+        <div class="tk" id="optBlock">
+          <h3>期权（向其他做市商买卖）</h3>
+          <p class="lock" id="optLock" hidden>本关只能用股票对冲，期权下单是锁着的。第 2 关开始可以向其他做市商买卖期权。</p>
+          <div class="row">
+            <select id="optK" aria-label="行权价"></select>
+            <div class="seg" id="segType" role="group" aria-label="类型"><button data-v="C">Call</button><button data-v="P">Put</button></div>
+            <input id="optQty" type="number" inputmode="numeric" min="1" step="1" value="10" aria-label="张数">
+          </div>
+          <p class="quoteline" id="optQuote"></p>
+          <div class="row">
+            <button class="btn buy" id="optBuy">买入</button>
+            <button class="btn sell" id="optSell">卖出</button>
+          </div>
+          <div class="need" id="optNeed"></div>
+        </div>
+        <div class="tk"><details id="chainBox" open>
+          <summary>期权一览（理论价与希腊值，点格子可选中）</summary>
+          <div class="tablewrap"><table class="chain" id="chain"></table></div>
+          <p class="note">Call（看涨）：股价涨它值钱；Put（看跌）：股价跌它值钱。1 张合约对应 100 股。</p>
+        </details></div>
+      </section>
+    </div>
+
+    <div class="col">
+      <!-- 图表 -->
+      <section class="panel" id="charts">
+        <div class="chart">
+          <header class="row" style="justify-content:space-between"><h2>股价走势</h2><span class="note" id="distInfo"></span></header>
+          <canvas id="cPrice" aria-label="股价走势图"></canvas>
+          <div class="legend"><span><i></i>股价</span><span><i class="strike"></i>行权价（767 加粗）</span></div>
+        </div>
+        <div class="chart">
+          <header class="row" style="justify-content:space-between"><h2>Gamma 随时间</h2><span class="note" id="gammaInfo"></span></header>
+          <canvas id="cGamma" aria-label="Gamma 随时间变化图"></canvas>
+          <div class="legend"><span><i></i>你持仓的 Gamma 股数（实际，取绝对值）</span><span><i class="dash"></i>如果股价和持仓都不变，到期前会变成多少</span></div>
+        </div>
+      </section>
+
+      <!-- 持仓 -->
+      <section class="panel" id="positions">
+        <header><h2>持仓</h2><span class="note">表格可左右滑动</span></header>
+        <div class="tablewrap"><table class="pos-table" id="posTable"></table></div>
+      </section>
+
+      <!-- 盈亏拆分 -->
+      <section class="panel" id="pnl">
+        <header><h2>盈亏拆分</h2></header>
+        <div class="total"><span>总盈亏（按市值）</span><b id="pnlTotal">$0</b></div>
+        <div class="pnl-list" id="pnlList"></div>
+        <div id="pnlExtra" class="pnl-list"></div>
+      </section>
+
+      <!-- 交易记录 -->
+      <section class="panel" id="logBox">
+        <header><h2>交易记录</h2><span class="note">最新在上</span></header>
+        <ul class="log" id="log"></ul>
+      </section>
+
+      <!-- 设置 -->
+      <details class="panel" id="settings">
+        <summary>设置</summary>
+        <div class="settings-grid">
+          <label class="field">隐含波动率（定价用）：<b id="ivVal"></b>
+            <input type="range" id="setIv" min="5" max="60" step="1">
+          </label>
+          <label class="field">你的报价价差（全宽，客户成交用）
+            <input type="number" id="setClient" min="0" max="2" step="0.01">
+          </label>
+          <label class="field">其他做市商的价差（全宽，你对冲期权用）
+            <input type="number" id="setMM" min="0" max="2" step="0.01">
+          </label>
+          <label class="field">股票成交：中间价 ± 多少
+            <input type="number" id="setStk" min="0" max="1" step="0.01">
+          </label>
+          <label class="field">冲击系数（第 5 关）：每净买入 1,000 股，股价被推动多少元
+            <input type="number" id="setImpact" min="0" max="1" step="0.01">
+          </label>
+          <label class="field">价格回拉到 767 的力度（本关；0 = 纯随机游走）
+            <input type="number" id="setPull" min="0" max="0.3" step="0.01">
+          </label>
+          <label class="field">本关起始剩余分钟（重新开始本关后生效）
+            <input type="number" id="setStart" min="5" max="1950" step="5">
+          </label>
+          <div class="field">颜色习惯
+            <div class="seg" id="segColors"><button data-v="cn">红涨绿跌</button><button data-v="us">绿涨红跌</button></div>
+          </div>
+          <div class="field">外观
+            <div class="seg" id="segTheme"><button data-v="system">跟随系统</button><button data-v="light">浅色</button><button data-v="dark">深色</button></div>
+          </div>
+          <p class="note">改波动率会让持仓市值立刻跳一下，这部分记在盈亏拆分的“其他”里。第 5 关每步由对冲推动的价格最多 1 元，模拟市场一分钟能消化的量。</p>
+        </div>
+      </details>
+
+      <!-- 自检 -->
+      <details class="panel" id="selftest">
+        <summary id="testSummary">自检</summary>
+        <ul class="tests" id="tests"></ul>
+        <button class="btn small" id="btnRetest">重新自检</button>
+      </details>
+    </div>
+  </div>
+</main>
+
+<div class="ordercard" id="orderCard" hidden><div class="card" id="orderInner"></div></div>
+<div class="modal" id="modal" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
+
+<script>
+'use strict';
+
+/* =====================================================================
+ * 1. 定价与希腊值（Black-Scholes，r = q = 0）
+ * ===================================================================== */
+const Pricing = (() => {
+  const MIN_PER_YEAR = 252 * 390;            // 一年的交易分钟数
+  // 互补误差函数，精确到机器精度：|x| < 3 用正项级数，|x| ≥ 3 用连分式；满足 erfc(-x) = 2 - erfc(x)
+  // （常见的多项式近似在 0 点有折角，会让平值期权的 Gamma 有限差分对不上）
+  function erfc(x) {
+    if (x < 0) return 2 - erfc(-x);
+    if (x < 3) {
+      let term = x, sum = x;
+      for (let n = 1; n < 200 && term > 1e-17 * sum; n++) { term *= 2 * x * x / (2 * n + 1); sum += term; }
+      return 1 - 2 / Math.sqrt(Math.PI) * Math.exp(-x * x) * sum;
+    }
+    let k = x;
+    for (let n = 60; n >= 1; n--) k = x + (n / 2) / k;
+    return Math.exp(-x * x) / (Math.sqrt(Math.PI) * k);
+  }
+  const N = x => 0.5 * erfc(-x / Math.SQRT2);
+  const pdf = x => Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI);
+  const years = minutes => Math.max(minutes, 0) / MIN_PER_YEAR;
+  function d1d2(S, K, T, v) {
+    const sv = v * Math.sqrt(T);
+    const d1 = (Math.log(S / K) + 0.5 * v * v * T) / sv;
+    return [d1, d1 - sv, sv];
+  }
+  function intrinsic(type, S, K) { return type === 'C' ? Math.max(S - K, 0) : Math.max(K - S, 0); }
+  function price(type, S, K, T, v) {
+    if (T <= 0) return intrinsic(type, S, K);
+    const [d1, d2] = d1d2(S, K, T, v);
+    return type === 'C' ? S * N(d1) - K * N(d2) : K * N(-d2) - S * N(-d1);
+  }
+  function delta(type, S, K, T, v) {
+    if (T <= 0) {
+      if (S === K) return type === 'C' ? 0.5 : -0.5;
+      return type === 'C' ? (S > K ? 1 : 0) : (S < K ? -1 : 0);
+    }
+    const [d1] = d1d2(S, K, T, v);
+    return type === 'C' ? N(d1) : N(d1) - 1;
+  }
+  function gamma(type, S, K, T, v) {
+    if (T <= 0) return 0;
+    const [d1, , sv] = d1d2(S, K, T, v);
+    return pdf(d1) / (S * sv);
+  }
+  // 每年的 Theta（r = 0 时 call 和 put 相同）
+  function theta(type, S, K, T, v) {
+    if (T <= 0) return 0;
+    const [d1] = d1d2(S, K, T, v);
+    return -S * pdf(d1) * v / (2 * Math.sqrt(T));
+  }
+  return { MIN_PER_YEAR, N, pdf, years, intrinsic, price, delta, gamma, theta };
+})();
+
+/* =====================================================================
+ * 2. 常量与关卡定义
+ * ===================================================================== */
+const MULT = 100;
+const S0 = 767;
+const STRIKES = [762, 765, 767, 770, 772];
+const PIN = 767;
+const IMPACT_CAP = 1;                      // 第 5 关：每步对冲冲击的上限（元）
+const TYPE_NAME = { C: 'Call', P: 'Put' };
+const W_DEFAULT = { 762: 1, 765: 2, 767: 4, 770: 2, 772: 1 };
+
+const LEVELS = {
+  1: {
+    name: '只对冲 Delta', tab: 'Delta 对冲', startMin: 390, bias: 'buy', biasToggle: false,
+    types: ['C'], weights: W_DEFAULT, qtys: [5, 10, 10, 15, 20, 25], scale: 1, orderGap: [3, 6], firstOrder: 2,
+    allowOpt: false, autoHedge: false, impact: false, pull: 0.02,
+    intro: {
+      why: [
+        '你是做市商：客户想买期权，你就卖给他。你赚的是报价差：你的卖价比理论价高 0.02，1 张合约（对应 100 股）赚 2 元。',
+        '卖出 Call 之后，股价涨你就亏。亏得多快？看风险面板第一行“整体涨跌效果”。比如显示“相当于做空 5,000 股”，意思是股价每涨 1 块你亏约 5,000 元。这个数就是 Delta。',
+        '做市商不想赌涨跌，所以买股票把这个数调回 0，这叫 Delta 对冲。',
+        '麻烦在于：股价一动，这个数自己会变（第二行，这就是 Gamma）。卖出 Call 后，股价涨了你会更空，只好再买；跌了又变多，只好卖。涨了买、跌了卖，就是高买低卖。'
+      ],
+      goal: [
+        '让“整体涨跌效果”一直接近 0。下单区的“一键调回 0”会帮你算好股数。',
+        '在交易记录里找“高买低卖”的标记，看盈亏拆分里 Gamma 那一行怎么慢慢变成亏损。'
+      ],
+      how: [
+        '按“开始”。客户订单会从屏幕底部弹出，按“接单”。',
+        '接单后、以及股价明显变动后，去下单区用股票对冲。',
+        '本关只能买卖股票，期权下单是锁着的。'
+      ]
+    },
+    summary: g => [
+      '做空 Gamma 的做市商，对冲时必然涨了买、跌了卖。每来回一次都亏一点，这就是 Gamma 盈亏里的亏损。',
+      '补偿来自 Theta：你卖出的期权每分钟都在变便宜。如果股价实际波动和定价用的波动率一样，两者平均下来正好抵消。',
+      '所以做市商真正稳定的收入是报价差。下一关：能不能用期权把 Gamma 本身抵掉？'
+    ]
+  },
+  2: {
+    name: '用期权对冲 Gamma', tab: 'Gamma 对冲', startMin: 390, bias: 'buy', biasToggle: false,
+    types: ['C'], weights: W_DEFAULT, qtys: [5, 10, 10, 15, 20, 25], scale: 1, orderGap: [3, 6], firstOrder: 2,
+    allowOpt: true, autoHedge: false, impact: false, pull: 0.02,
+    intro: {
+      why: [
+        '上一关你一直在追着买卖股票，根源是 Gamma 不为 0：股价一动，涨跌效果就跟着变。',
+        '股票的 Gamma 是 0，买再多股票也抵不掉 Gamma。能抵掉 Gamma 的只有期权：卖出期权是做空 Gamma，买入期权是做多 Gamma。',
+        '这关你可以向“其他做市商”买期权。他们给你的价格更差（理论价 ±0.05），每张多付 5 元，这就是对冲成本。'
+      ],
+      goal: [
+        '看下单区“期权”里的“需要张数”：需要张数 = 当前整体 Gamma 股数 ÷（这个期权的 Gamma × 100）。按它买入，把 Gamma 抵到接近 0。',
+        '再用股票把整体涨跌效果调回 0。',
+        '然后观察：股价再动，你几乎不用再买卖；但风险面板第三行的 Theta 收入变少了，盈亏拆分里多了对冲成本。'
+      ],
+      how: [
+        '客户流和第 1 关一样：多数在买 Call。',
+        '建议先接几单、用股票对冲，感受一下 Gamma 的麻烦，再用期权抵掉它。',
+        '用和客户同一个行权价的期权去抵，效果最干净。'
+      ]
+    },
+    summary: g => [
+      'Gamma 抵到接近 0 后，股价波动不再逼你高买低卖，风险小了很多。',
+      '代价有两个：买回来的期权也有时间损耗，Theta 收入被抵掉；向其他做市商成交，还付了对冲成本。',
+      '所以做市商通常不全抵。全抵等于把赚来的报价差和 Theta 又交给了别人。常见做法是把 Gamma 控制在能承受的范围，Delta 用股票随时调回 0，靠报价差慢慢赚。'
+    ]
+  },
+  3: {
+    name: '做空 vs 做多 Gamma', tab: '空/多 Gamma', startMin: 390, bias: 'buy', biasToggle: true,
+    types: ['C', 'P'], weights: W_DEFAULT, qtys: [10, 10, 20, 20, 30], scale: 1, orderGap: [4, 8], firstOrder: 4,
+    allowOpt: true, autoHedge: true, impact: false, pull: 0.01,
+    seed: g => {
+      const why = g.bias === 'buy' ? '开局已有：客户之前买入' : '开局已有：客户之前卖出';
+      Core.clientFill(g, { side: g.bias, type: 'X', K: 767, qty: 50 }, why);
+      Core.autoHedge(g, '开局对冲 Delta');
+    },
+    intro: {
+      why: [
+        '客户整体在买期权 → 你都是卖出 → 你做空 Gamma。客户整体在卖期权 → 你都是买入 → 你做多 Gamma。',
+        '本关打开了“自动 Delta 对冲”：每一步系统都自动用股票把涨跌效果调回 0。你只需要看它怎么买卖。',
+        '做空 Gamma：涨了买、跌了卖（高买低卖）。怕大波动，靠 Theta 每步收钱。',
+        '做多 Gamma：涨了卖、跌了买（低买高卖）。喜欢波动，但每步被 Theta 磨掉一点。'
+      ],
+      goal: [
+        '两种客户偏向都玩一会儿（在控制区切换，会重新开始本关，并在盈亏拆分下方留下对比记录）。',
+        '比较 Gamma 和 Theta 两行的正负，以及“涨了买 / 跌了卖”的次数。',
+        '按“突发新闻”制造一次跳空，看两种情况下谁受伤。'
+      ],
+      how: [
+        '开局已有仓位：客户在 767 买入（或卖出）了 50 张 Call 和 50 张 Put。',
+        '可以用 5x 快进。客户还会陆续来单。'
+      ]
+    },
+    summary: g => [
+      '做空 Gamma 的做市商每步收 Theta，但波动越大亏得越多，最怕跳空。',
+      '做多 Gamma 的做市商每步付 Theta，但波动越大赚得越多，跳空反而是好事。',
+      '在这个模型里，Theta 和 Gamma 永远一正一负；实际波动等于隐含波动率时，两者平均正好抵消。做市商靠的是报价差，以及对未来波动的判断。'
+    ]
+  },
+  4: {
+    name: '到期前最后一小时', tab: '最后一小时', startMin: 60, bias: 'mixed', biasToggle: false,
+    types: ['C', 'P'], weights: W_DEFAULT, qtys: [5, 10, 10, 20], scale: 1, orderGap: [5, 9], firstOrder: 6,
+    allowOpt: true, autoHedge: true, impact: false, pull: 0.01,
+    seed: g => {
+      Core.clientFill(g, { side: 'buy', type: 'C', K: 767, qty: 100 }, '开局已有：客户之前买入');
+      Core.autoHedge(g, '开局对冲 Delta');
+    },
+    intro: {
+      why: [
+        '离到期越近，行权价附近期权的涨跌效果变得越“急”：股价在很小的范围里动一下，每张就从接近 0 股变到接近 100 股。所以 Gamma 会越来越大。',
+        '本关从剩余 60 分钟开始，股价在 767 附近。你已经卖出 100 张 767 Call（客户之前买的），并用股票对冲好了。自动 Delta 对冲是开着的。',
+        '“Gamma 随时间”图：实线是你持仓 Gamma 的实际变化，虚线是假如股价和持仓都不动，到期前它会涨到多少。'
+      ],
+      goal: [
+        '盯着“假如股价 ±1”：同样动 1 块，要对冲的股数和亏损，比开局时大多少倍？这就是“被 Gamma”。',
+        '试试中途向其他做市商买回一部分 Call，看风险面板怎么变。'
+      ],
+      how: [
+        '先用 1x 慢慢看，最后 10 分钟变化最剧烈。',
+        '到期时价内期权按内在价值现金结算，价外的归零。'
+      ]
+    },
+    summary: g => [
+      '同样 1 块的波动，越临近到期，要对冲的股数越大，高买低卖的亏损也越大。',
+      '所以临近到期、股价又在大仓位的行权价附近时，做空 Gamma 的做市商压力最大，常常提前买回或减仓。'
+    ]
+  },
+  5: {
+    name: '你的对冲会影响股价', tab: '对冲推股价', startMin: 240, bias: 'sell', biasToggle: true,
+    types: ['X'], weights: { 767: 1 }, qtys: [1, 2, 3], scale: 20, orderGap: [10, 16], firstOrder: 8,
+    allowOpt: true, autoHedge: true, impact: true, pull: 0,
+    seed: g => {
+      const why = g.bias === 'buy' ? '开局已有：全市场客户之前买入' : '开局已有：全市场客户之前卖出';
+      Core.clientFill(g, { side: g.bias, type: 'X', K: 767, qty: 1000 }, why);
+      Core.autoHedge(g, '开局对冲 Delta');
+    },
+    intro: {
+      why: [
+        '前几关股价自己走，你做什么都不影响它。现实中，全市场的做市商一起对冲，买卖的股数很大，会推动股价。',
+        '本关你代表“全体做市商”，仓位是放大的：开局已有 1,000 张 767 Call + 1,000 张 767 Put。',
+        '每步股价变化 = 随机冲击 + 冲击系数 × 本步做市商净买入的股数。默认每净买入 1,000 股，股价被推高 0.05 元（设置里可调）。自动对冲时，对冲的买卖和它推动的股价是同时发生的。',
+        '做多 Gamma：涨了，做市商卖股票，把价格压回去；跌了，做市商买，托回来。价格被钉在 767 附近，这叫钉住（pinning）。',
+        '做空 Gamma：涨了，做市商买股票，推得更高，又得再买……价格越走越远，这叫 Gamma squeeze。'
+      ],
+      goal: [
+        '两种客户偏向都试（会重新开始本关并保留对比记录），看价格图里股价和 767 那条线的距离。',
+        '越接近到期 Gamma 越大，效果越明显。'
+      ],
+      how: [
+        '自动 Delta 对冲默认开着。你也可以关掉自己对冲，你的买卖同样会推动股价。',
+        '把冲击系数调成 0，就回到普通随机游走，可以对比。'
+      ]
+    },
+    summary: g => [
+      '做多 Gamma 的对冲是逆势交易（涨了卖、跌了买），会压低波动，把价格吸在大仓位的行权价附近。',
+      '做空 Gamma 的对冲是顺势交易（涨了买、跌了卖），会放大波动，价格一旦启动就停不下来，直到离开 Gamma 大的区域。'
+    ]
+  }
+};
+
+/* =====================================================================
+ * 3. 工具：格式化与随机数
+ * ===================================================================== */
+const fmt = {
+  int: n => Math.round(Math.abs(n)).toLocaleString('en-US'),
+  sint: n => { const r = Math.round(n); return (r > 0 ? '+' : r < 0 ? '−' : '') + Math.abs(r).toLocaleString('en-US'); },
+  px: n => n.toFixed(2),
+  g: n => n.toFixed(4),
+  money: n => {
+    const a = Math.abs(n);
+    const body = a < 10 ? a.toFixed(2) : Math.round(a).toLocaleString('en-US');
+    if (body === '0.00' || body === '0') return '$0';
+    return (n > 0 ? '+' : '−') + '$' + body;
+  },
+  cls: n => (n > 1e-9 ? 'pos' : n < -1e-9 ? 'neg' : '')
+};
+const rnd = {
+  gauss() { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); },
+  int(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); },
+  pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; },
+  weighted(w) { const ks = Object.keys(w); let t = 0; ks.forEach(k => t += w[k]); let x = Math.random() * t; for (const k of ks) { x -= w[k]; if (x <= 0) return +k; } return +ks[ks.length - 1]; }
+};
+function deltaText(d) {
+  const r = Math.round(d);
+  if (r === 0) return '相当于 0 股';
+  return r > 0 ? `相当于做多 ${fmt.int(r)} 股` : `相当于做空 ${fmt.int(r)} 股`;
+}
+function tradeText(n) { const r = Math.round(n); return r > 0 ? `买入 ${fmt.int(r)} 股` : r < 0 ? `卖出 ${fmt.int(r)} 股` : '不用买卖'; }
+
+/* =====================================================================
+ * 4. 市场模拟、持仓与盈亏、订单流（核心逻辑，不碰界面）
+ * ===================================================================== */
+const P = Pricing;
+const Core = {
+  newGame(level, set, bias) {
+    const L = LEVELS[level];
+    const startMin = set.startMin[level];
+    const g = {
+      level, set, S: S0, minutes: startMin, startMin, step: 0,
+      mode: 'auto', autoHedge: L.autoHedge, bias: bias || L.bias,
+      pos: {}, cash: 0, trades: [],
+      pnl: { spread: 0, hedge: 0, delta: 0, gamma: 0, theta: 0 },
+      stockLoss: 0, stockGain: 0, volume: 0,
+      pattern: { upBuy: 0, upSell: 0, downBuy: 0, downSell: 0 }, clientSinceMove: false, lastDS: 0,
+      order: null, orderSeq: 0, nextOrderIn: L.firstOrder,
+      pendingFlow: 0, hist: [{ m: startMin, S: S0 }], gHist: [],
+      ended: false, endReason: '', lastMove: null, lastCheck: null,
+      sumDist: 0, maxDist: 0, thetaPeak: 0, gammaPeak: 0, gamma0: 0
+    };
+    if (L.seed) L.seed(g);
+    g.pendingFlow = 0;                       // 开局对冲不推动股价
+    const gk = Core.greeks(g);
+    g.gamma0 = Math.abs(gk.gamma);
+    g.gHist.push({ m: g.minutes, g: gk.gamma });
+    Core.track(g);
+    return g;
+  },
+
+  // 组合希腊值：delta / gamma 以“股”为单位，theta 以“每步美元”为单位，value 为持仓市值
+  greeks(g, S = g.S, minutes = g.minutes) {
+    const T = P.years(minutes), v = g.set.iv;
+    let delta = 0, gamma = 0, theta = 0, value = 0;
+    for (const k in g.pos) {
+      const p = g.pos[k];
+      if (p.type === 'S') { delta += p.qty; value += p.qty * S; continue; }
+      const n = p.qty * MULT;
+      delta += P.delta(p.type, S, p.K, T, v) * n;
+      gamma += P.gamma(p.type, S, p.K, T, v) * n;
+      theta += P.theta(p.type, S, p.K, T, v) * n / P.MIN_PER_YEAR;
+      value += P.price(p.type, S, p.K, T, v) * n;
+    }
+    return { delta, gamma, theta, value };
+  },
+  theo(g, type, K, S = g.S) { return P.price(type, S, K, P.years(g.minutes), g.set.iv); },
+  total(g) { return g.cash + Core.greeks(g).value; },
+  track(g) {
+    const gk = Core.greeks(g);
+    g.thetaPeak = Math.max(g.thetaPeak, gk.theta);
+    g.gammaPeak = Math.max(g.gammaPeak, Math.abs(gk.gamma));
+  },
+
+  // 一笔成交。qty 以“我”的角度：正 = 我买入，负 = 我卖出
+  trade(g, t) {
+    const isStk = t.type === 'S';
+    const mult = isStk ? 1 : MULT;
+    const key = isStk ? 'STK' : t.type + t.K;
+    g.cash -= t.qty * t.price * mult;
+    const edge = (t.theo - t.price) * t.qty * mult;
+    if (t.kind === 'client') g.pnl.spread += edge;
+    else if (t.kind !== 'settle') g.pnl.hedge += edge;
+
+    let p = g.pos[key];
+    if (!p) p = g.pos[key] = { type: t.type, K: t.K || 0, qty: 0, avg: 0 };
+    const prevAvg = p.avg;
+    let realized = 0;
+    if (p.qty !== 0 && Math.sign(p.qty) !== Math.sign(t.qty)) {
+      const closeQty = Math.min(Math.abs(t.qty), Math.abs(p.qty));
+      realized = (t.price - p.avg) * closeQty * Math.sign(p.qty) * mult;
+      const rem = Math.abs(t.qty) - closeQty;
+      p.qty += Math.sign(t.qty) * closeQty;
+      if (rem > 0) { p.qty = Math.sign(t.qty) * rem; p.avg = t.price; }
+    } else {
+      const nq = Math.abs(p.qty) + Math.abs(t.qty);
+      p.avg = (p.avg * Math.abs(p.qty) + t.price * Math.abs(t.qty)) / nq;
+      p.qty += t.qty;
+    }
+    if (p.qty === 0) delete g.pos[key];
+
+    // 交易记录文字
+    const q = Math.abs(t.qty), buy = t.qty > 0;
+    let text, flag = null;
+    if (isStk) {
+      g.pendingFlow += t.qty;
+      g.volume += q;
+      text = `${t.why}：在 ${fmt.px(t.price)} ${buy ? '买入' : '卖出'} ${fmt.int(q)} 股`;
+      // 卖出时对比之前的买入均价；买入（买回之前卖空的股票）时对比之前的卖出均价
+      const before = buy ? `之前卖出均价 ${fmt.px(prevAvg)}，现在买回 ${fmt.px(t.price)}` : `之前买入均价 ${fmt.px(prevAvg)}，现在卖出 ${fmt.px(t.price)}`;
+      if (realized < -0.005) {
+        g.stockLoss += realized;
+        flag = { kind: 'bad', text: `高买低卖：${before}，亏 ${fmt.money(realized)}` };
+      } else if (realized > 0.005) {
+        g.stockGain += realized;
+        flag = { kind: 'good', text: `低买高卖：${before}，赚 ${fmt.money(realized)}` };
+      }
+      if (t.react && !g.clientSinceMove && g.lastDS !== 0) {
+        const up = g.lastDS > 0;
+        g.pattern[(up ? 'up' : 'down') + (buy ? 'Buy' : 'Sell')]++;
+      }
+    } else {
+      const inst = `${t.K} ${TYPE_NAME[t.type]}`;
+      if (t.kind === 'client') {
+        text = `${t.why ? t.why + '：' : ''}客户${buy ? '卖出' : '买入'} ${q} 张 ${inst}，你按${buy ? '买价' : '卖价'} ${fmt.px(t.price)} ${buy ? '买入' : '卖出'}（理论价 ${fmt.px(t.theo)}，报价差收入 ${fmt.money(edge)}）`;
+      } else if (t.kind === 'settle') {
+        const itm = t.price > 0;
+        text = `到期结算：${inst} ${itm ? `价内，内在价值 ${fmt.px(t.price)}` : '价外，归零'}，${fmt.sint(-t.qty)} 张 → 现金 ${fmt.money(-t.qty * t.price * mult)}`;
+      } else {
+        text = `${t.why}：向其他做市商${buy ? '买入' : '卖出'} ${q} 张 ${inst}，成交价 ${fmt.px(t.price)}（理论价 ${fmt.px(t.theo)}，对冲成本 ${fmt.money(edge)}）`;
+      }
+    }
+    Core.log(g, text, flag);
+    Core.track(g);
+  },
+  log(g, text, flag) {
+    g.trades.unshift({ step: g.step, m: g.minutes, text, flag });
+    if (g.trades.length > 400) g.trades.length = 400;
+  },
+
+  stockTrade(g, qty, kind, why, react) {
+    qty = Math.round(qty);
+    if (!qty) return 0;
+    const half = g.set.stockHalf;
+    Core.trade(g, { type: 'S', qty, price: g.S + Math.sign(qty) * half, theo: g.S, kind, why, react });
+    return qty;
+  },
+  optionTrade(g, type, K, qty, why) {
+    qty = Math.round(qty);
+    if (!qty) return;
+    const theo = Core.theo(g, type, K);
+    Core.trade(g, { type, K, qty, price: theo + Math.sign(qty) * g.set.mmSpread / 2, theo, kind: 'hedge', why });
+  },
+  // 客户订单成交：客户买 = 我按卖价卖出；type 'X' = 跨式（Call 和 Put 各一份）
+  clientFill(g, o, why) {
+    const legs = o.type === 'X' ? ['C', 'P'] : [o.type];
+    const myQty = o.side === 'buy' ? -o.qty : o.qty;
+    for (const type of legs) {
+      const theo = Core.theo(g, type, o.K);
+      Core.trade(g, { type, K: o.K, qty: myQty, price: theo - Math.sign(myQty) * g.set.clientSpread / 2, theo, kind: 'client', why });
+    }
+    g.clientSinceMove = true;
+  },
+  autoHedge(g, why = '自动对冲 Delta', react = false) {
+    return Core.stockTrade(g, -Core.greeks(g).delta, 'auto', why, react);
+  },
+
+  // 股价/时间变化，并做盈亏归因
+  move(g, newS, newMinutes) {
+    const b = Core.greeks(g);
+    const dS = newS - g.S, dt = g.minutes - newMinutes;
+    g.S = newS; g.minutes = newMinutes;
+    const a = Core.greeks(g);
+    g.pnl.delta += b.delta * dS;
+    g.pnl.gamma += 0.5 * b.gamma * dS * dS;
+    g.pnl.theta += b.theta * dt;
+    if (dS !== 0) { g.lastDS = dS; g.clientSinceMove = false; }
+    g.hist.push({ m: newMinutes, S: newS });
+    if (g.hist.length > 4000) g.hist.shift();
+    g.lastMove = { dS, dt, deltaBefore: b.delta, deltaAfter: a.delta, pnl: a.value - b.value };
+    return g.lastMove;
+  },
+  preview(g, d) {
+    const b = Core.greeks(g), a = Core.greeks(g, g.S + d);
+    return { S: g.S + d, delta: a.delta, need: -a.delta, pnl: a.value - b.value };
+  },
+  // 手动拖动股价（不走时间）；d 为 ±1 时记录“预览 vs 实际”
+  nudge(g, d) {
+    const pre = Math.abs(Math.abs(d) - 1) < 1e-9 ? Core.preview(g, d) : null;
+    const m = Core.move(g, Math.max(1, g.S + d), g.minutes);
+    g.lastCheck = pre ? { d, pre, act: { delta: m.deltaAfter, pnl: m.pnl } } : null;
+    return m;
+  },
+  news(g) {
+    const pct = (0.005 + Math.random() * 0.005) * (Math.random() < 0.5 ? -1 : 1);
+    const d = g.S * pct;
+    const m = Core.move(g, g.S + d, g.minutes);
+    g.lastCheck = null;
+    Core.log(g, `突发新闻：股价跳空 ${d > 0 ? '+' : '−'}${fmt.px(Math.abs(d))}（${(pct * 100).toFixed(2)}%），持仓市值变化 ${fmt.money(m.pnl)}`, null);
+  },
+
+  // 一步 = 1 分钟。返回 'order'（来单）或 'expired'（到期）或 null
+  step(g) {
+    if (g.ended) return null;
+    const L = LEVELS[g.level];
+    let dS = 0;
+    if (g.mode === 'auto') {
+      const v = g.set.iv, dt = 1 / P.MIN_PER_YEAR;
+      dS = g.S * (Math.exp(v * Math.sqrt(dt) * rnd.gauss() - 0.5 * v * v * dt) - 1);
+      const pull = g.set.pull[g.level];
+      if (pull) dS += pull * (PIN - g.S);
+    }
+    const k = L.impact ? g.set.impact / 1000 : 0;
+    const target = g.S + dS + k * g.pendingFlow;       // 随机冲击 + 上一步之后做市商已经成交的净买入
+    // 开着自动对冲时，本步的对冲买卖和它推动的股价同时发生：解出两者一致的价格
+    const newS = k > 0 && g.autoHedge ? Core.solveImpact(g, target, k) : target;
+    g.pendingFlow = 0;
+    Core.move(g, Math.max(1, newS), g.minutes - 1);
+    g.lastCheck = null;
+    g.step++;
+    const dist = Math.abs(g.S - PIN);
+    g.sumDist += dist; g.maxDist = Math.max(g.maxDist, dist);
+
+    if (g.minutes <= 0) { Core.settle(g); return 'expired'; }
+    if (g.autoHedge) {
+      Core.autoHedge(g, '自动对冲 Delta', true);
+      if (k > 0) g.pendingFlow = 0;                     // 这笔对冲的冲击已经算进本步股价
+    }
+    g.gHist.push({ m: g.minutes, g: Core.greeks(g).gamma });
+    Core.track(g);
+
+    if (g.order) {
+      g.order.ttl--;
+      if (g.order.ttl <= 0) {
+        Core.log(g, '客户等不及，撤单了', null);
+        g.order = null; g.nextOrderIn = rnd.int(...L.orderGap);
+      }
+    } else if (--g.nextOrderIn <= 0) {
+      g.order = Core.makeOrder(g);
+      return 'order';
+    }
+    return null;
+  },
+  // 第 5 关：找价格 x，使 x = target + k × 对冲净买入(x)，其中对冲净买入(x) = −(x 处的整体涨跌效果)。
+  // 做多 Gamma 时只有一个解（股价被压住）；做空 Gamma 且 k×|Gamma| > 1 时，沿冲击方向找到最近的解，
+  // 价格会一口气跳过去，直到离开 Gamma 大的区域（Gamma squeeze）。
+  solveImpact(g, target, k) {
+    const m = g.minutes - 1;
+    const h = x => x - target + k * Core.greeks(g, x, m).delta;
+    const dir = h(g.S) < 0 ? 1 : -1;
+    let a = g.S, ha = h(a), b = a;
+    for (let i = 0; i < 4000; i++) {
+      b = a + dir * 0.02;
+      const hb = h(b);
+      if (Math.sign(hb) !== Math.sign(ha) || hb === 0) break;
+      a = b; ha = hb;
+    }
+    for (let i = 0; i < 40; i++) {
+      const mid = (a + b) / 2, hm = h(mid);
+      if (Math.sign(hm) === Math.sign(ha)) { a = mid; ha = hm; } else b = mid;
+    }
+    // 一分钟内对冲推动的价格最多 IMPACT_CAP 元：squeeze 会分几步走完，而不是一步跳到底
+    const x = (a + b) / 2;
+    return target + Math.max(-IMPACT_CAP, Math.min(IMPACT_CAP, x - target));
+  },
+  makeOrder(g) {
+    const L = LEVELS[g.level];
+    const pBuy = { buy: 0.85, sell: 0.15, mixed: 0.5 }[g.bias];
+    return {
+      id: ++g.orderSeq,
+      side: Math.random() < pBuy ? 'buy' : 'sell',
+      type: rnd.pick(L.types),
+      K: rnd.weighted(L.weights),
+      qty: rnd.pick(L.qtys) * L.scale,
+      ttl: 10
+    };
+  },
+  acceptOrder(g) {
+    const o = g.order; if (!o) return;
+    Core.clientFill(g, o, '');
+    if (g.autoHedge) Core.autoHedge(g, '接单后自动对冲 Delta');
+    g.order = null; g.nextOrderIn = rnd.int(...LEVELS[g.level].orderGap);
+  },
+  rejectOrder(g) {
+    if (!g.order) return;
+    Core.log(g, '拒绝了客户订单（没有收益，也不增加风险）', null);
+    g.order = null; g.nextOrderIn = rnd.int(...LEVELS[g.level].orderGap);
+  },
+  settle(g) {
+    for (const k of Object.keys(g.pos)) {
+      const p = g.pos[k];
+      if (p.type === 'S') continue;
+      const iv = P.intrinsic(p.type, g.S, p.K);
+      Core.trade(g, { type: p.type, K: p.K, qty: -p.qty, price: iv, theo: iv, kind: 'settle' });
+    }
+    Core.log(g, `到期：股票按收盘价 ${fmt.px(g.S)} 计值`, null);
+    g.order = null; g.ended = true; g.endReason = 'expiry';
+  },
+  breakdown(g) {
+    const total = Core.total(g);
+    const p = g.pnl;
+    const parts = p.spread + p.hedge + p.gamma + p.theta + p.delta;
+    return { total, parts, other: total - parts, ...p };
+  }
+};
+
+/* =====================================================================
+ * 5. 自检（put-call parity、希腊值关系、有限差分、场景检查）
+ * ===================================================================== */
+function runSelfTests() {
+  const out = [];
+  const ok = (name, pass, detail) => out.push({ name, pass, detail });
+  const v = 0.15;
+  let worst = 0;
+  for (const S of [755, 767, 779]) for (const K of STRIKES) for (const m of [10, 60, 390]) {
+    const T = P.years(m);
+    worst = Math.max(worst, Math.abs(P.price('C', S, K, T, v) - P.price('P', S, K, T, v) - (S - K)));
+  }
+  ok('put-call parity：C − P = S − K', worst < 1e-9, `最大误差 ${worst.toExponential(2)}`);
+
+  let gd = 0, dd = 0;
+  for (const S of [755, 767, 779]) for (const K of STRIKES) {
+    const T = P.years(120);
+    gd = Math.max(gd, Math.abs(P.gamma('C', S, K, T, v) - P.gamma('P', S, K, T, v)));
+    dd = Math.max(dd, Math.abs(P.delta('C', S, K, T, v) - P.delta('P', S, K, T, v) - 1));
+  }
+  ok('Call 与 Put 的 Gamma 相同', gd < 1e-12, `最大差 ${gd.toExponential(2)}`);
+  ok('Call Delta − Put Delta = 1', dd < 1e-12, `最大误差 ${dd.toExponential(2)}`);
+
+  let fdD = 0, fdG = 0, fdT = 0;
+  for (const type of ['C', 'P']) for (const S of [758, 767, 776]) for (const K of STRIKES) for (const m of [30, 390]) {
+    const T = P.years(m), h = 0.01, hg = 0.05, dT = P.years(0.01);
+    const f = s => P.price(type, s, K, T, v);
+    const dNum = (f(S + h) - f(S - h)) / (2 * h);
+    const gNum = (f(S + hg) - 2 * f(S) + f(S - hg)) / (hg * hg);
+    const tNum = -(P.price(type, S, K, T + dT, v) - P.price(type, S, K, T - dT, v)) / (2 * dT);
+    const gA = P.gamma(type, S, K, T, v), tA = P.theta(type, S, K, T, v);
+    fdD = Math.max(fdD, Math.abs(dNum - P.delta(type, S, K, T, v)));
+    fdG = Math.max(fdG, Math.abs(gNum - gA) / Math.max(gA, 1e-3));
+    fdT = Math.max(fdT, Math.abs(tNum - tA) / Math.max(Math.abs(tA), 1));
+  }
+  ok('有限差分 Delta ≈ 解析 Delta', fdD < 1e-5, `最大绝对误差 ${fdD.toExponential(2)}`);
+  ok('有限差分 Gamma ≈ 解析 Gamma', fdG < 2e-3, `最大相对误差 ${fdG.toExponential(2)}`);
+  ok('有限差分 Theta ≈ 解析 Theta', fdT < 2e-3, `最大相对误差 ${fdT.toExponential(2)}`);
+
+  // 场景：卖出 100 张 767 Call，Delta 恰为 0.50
+  const set = makeSettings(); set.stockHalf = 0; set.clientSpread = 0;
+  const g = Core.newGame(1, set);
+  g.S = 767 * Math.exp(-0.5 * v * v * P.years(g.minutes));       // d1 = 0 → Delta = 0.50
+  const d0 = P.delta('C', g.S, 767, P.years(g.minutes), v);
+  Core.clientFill(g, { side: 'buy', type: 'C', K: 767, qty: 100 }, '自检');
+  const txt = deltaText(Core.greeks(g).delta);
+  ok('场景：卖出 100 张 767 Call（Delta 0.50）→ 显示“相当于做空 5,000 股”', txt === '相当于做空 5,000 股', `Delta=${d0.toFixed(4)}，面板文字“${txt}”`);
+  const pre = Core.preview(g, 1);
+  Core.nudge(g, 1);
+  const c = g.lastCheck;
+  const same = Math.abs(c.act.delta - pre.delta) < 1e-6 && Math.abs(c.act.pnl - pre.pnl) < 1e-6;
+  ok('场景：股价 +1 后，“假如”预览 = 实际变化', same,
+    `预览 ${deltaText(pre.delta)}、${fmt.money(pre.pnl)}；实际 ${deltaText(c.act.delta)}、${fmt.money(c.act.pnl)}`);
+
+  // 盈亏归因：随机走 300 步并自动对冲，各项之和 ≈ 总盈亏
+  const g2 = Core.newGame(3, makeSettings());
+  g2.autoHedge = true;
+  for (let i = 0; i < 300 && !g2.ended; i++) { Core.step(g2); if (g2.order) Core.acceptOrder(g2); }
+  const b = Core.breakdown(g2);
+  const scale = Math.abs(b.gamma) + Math.abs(b.theta) + Math.abs(b.spread) + 1;
+  ok('盈亏拆分：各项之和 ≈ 总盈亏（自动对冲 300 步）', Math.abs(b.other) / scale < 0.05,
+    `总盈亏 ${fmt.money(b.total)}，各项合计 ${fmt.money(b.parts)}，其他 ${fmt.money(b.other)}`);
+  return out;
+}
+
+/* =====================================================================
+ * 6. 设置与界面状态
+ * ===================================================================== */
+function makeSettings() {
+  const startMin = {}, pull = {};
+  for (const id in LEVELS) { startMin[id] = LEVELS[id].startMin; pull[id] = LEVELS[id].pull; }
+  return { iv: 0.15, clientSpread: 0.04, mmSpread: 0.10, stockHalf: 0.01, impact: 0.05, pauseOnOrder: true, startMin, pull, colors: 'cn', theme: 'system' };
+}
+let SET = makeSettings();
+let G = null;
+const UI = { running: false, speed: 1, timer: null, optType: 'C', optK: 767, runs: {}, introShown: {} };
+const $ = id => document.getElementById(id);
+
+function storeGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function storeSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 不可用时忽略 */ } }
+
+/* =====================================================================
+ * 7. 关卡流程
+ * ===================================================================== */
+function startLevel(id, bias, showIntro = true) {
+  stop();
+  G = Core.newGame(id, SET, bias);
+  storeSet('mm-sim-level', String(id));
+  syncSettingsInputs();
+  render();
+  if (showIntro) openIntro();
+}
+function recordRun() {
+  if (!G || G.step < 5) return;
+  const b = Core.breakdown(G);
+  const list = UI.runs[G.level] = UI.runs[G.level] || [];
+  list.unshift({
+    bias: G.bias, steps: G.step, gamma: b.gamma, theta: b.theta, total: b.total,
+    avgDist: G.sumDist / Math.max(G.step, 1), maxDist: G.maxDist, pattern: { ...G.pattern }
+  });
+  if (list.length > 4) list.length = 4;
+}
+function endLevel(reason) {
+  stop();
+  if (reason === 'early' && !G.ended) { G.ended = true; G.endReason = 'early'; G.order = null; }
+  recordRun();
+  render();
+  openSummary();
+}
+
+function play() {
+  if (G.ended) return;
+  UI.running = true; schedule(); render();
+}
+function stop() { UI.running = false; clearTimeout(UI.timer); }
+function schedule() {
+  clearTimeout(UI.timer);
+  UI.timer = setTimeout(() => {
+    if (!UI.running) return;
+    const ev = Core.step(G);
+    if (G.ended) { endLevel('expiry'); return; }
+    if (ev === 'order' && SET.pauseOnOrder) stop();
+    render();
+    if (UI.running) schedule();
+  }, 1000 / UI.speed);
+}
+function doStep() {
+  if (G.ended) return;
+  Core.step(G);
+  if (G.ended) { endLevel('expiry'); return; }
+  render();
+}
+
+/* =====================================================================
+ * 8. 界面渲染
+ * ===================================================================== */
+function render() {
+  renderTop(); renderControls(); renderRisk(); renderPreview(); renderTicket();
+  renderPositions(); renderPnl(); renderLog(); renderOrder(); renderCharts();
+}
+
+function renderTop() {
+  const chg = G.S - S0;
+  $('px').textContent = fmt.px(G.S);
+  $('chg').textContent = `${chg >= 0 ? '+' : '−'}${fmt.px(Math.abs(chg))}（${(chg / S0 * 100).toFixed(2)}%）`;
+  $('chg').className = 'chg ' + fmt.cls(chg);
+  $('tleft').textContent = G.minutes > 0 ? `${G.minutes} 分钟` : '已到期';
+  $('lvlTag').textContent = `第 ${G.level} 关 · ${LEVELS[G.level].tab}`;
+}
+
+function renderControls() {
+  const L = LEVELS[G.level];
+  $('levelTabs').innerHTML = Object.keys(LEVELS).map(id =>
+    `<button data-level="${id}" aria-current="${+id === G.level}"><b>${id}</b>${LEVELS[id].tab}</button>`).join('') +
+    '<button class="help" data-act="intro">本关说明</button>';
+  $('lvlTitle').textContent = `第 ${G.level} 关 · ${L.name}`;
+  $('stepInfo').textContent = G.ended ? (G.endReason === 'expiry' ? '已到期结算' : '已结束') : `第 ${G.step} 步 · 每步 1 分钟`;
+  const pb = $('btnPlay');
+  pb.textContent = UI.running ? '暂停' : '开始';
+  pb.disabled = G.ended; $('btnStep').disabled = G.ended || UI.running; $('btnEnd').disabled = G.ended;
+  setPressed('segSpeed', String(UI.speed));
+  setPressed('segMode', G.mode);
+  $('btnNews').hidden = G.mode !== 'auto';
+  $('btnNews').disabled = G.ended;
+  $('manualBox').hidden = G.mode !== 'manual';
+  const sl = $('slider');
+  sl.min = Math.floor(Math.min(747, G.S - 5)); sl.max = Math.ceil(Math.max(787, G.S + 5));
+  if (document.activeElement !== sl) sl.value = G.S;
+  $('chkAuto').checked = G.autoHedge;
+  $('chkPause').checked = SET.pauseOnOrder;
+
+  const box = $('biasBox');
+  if (L.biasToggle) {
+    box.innerHTML = `<span>客户偏向（切换会重新开始本关，并保留对比记录）</span>
+      <div class="seg wrap-seg" id="segBias">
+        <button data-v="buy" aria-pressed="${G.bias === 'buy'}">客户整体在买期权（你做空 Gamma）</button>
+        <button data-v="sell" aria-pressed="${G.bias === 'sell'}">客户整体在卖期权（你做多 Gamma）</button>
+      </div>`;
+  } else {
+    box.innerHTML = `<span>客户偏向（只影响之后的订单）</span>
+      <div class="seg wrap-seg" id="segBias">
+        <button data-v="buy" aria-pressed="${G.bias === 'buy'}">多数在买</button>
+        <button data-v="sell" aria-pressed="${G.bias === 'sell'}">多数在卖</button>
+        <button data-v="mixed" aria-pressed="${G.bias === 'mixed'}">随机</button>
+      </div>`;
+  }
+}
+function setPressed(segId, v) { $(segId).querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v))); }
+
+function hintText() {
+  const L = LEVELS[G.level], gk = Core.greeks(G);
+  const thr = 100 * L.scale, d = gk.delta, gm = gk.gamma;
+  if (G.ended) return ['本关已结束。可以看小结、重新开始，或者去下一关。', false];
+  if (G.order) return ['有客户订单在底部等你：接单赚报价差，但会增加风险。', false];
+  const noPos = Object.keys(G.pos).length === 0;
+  if (noPos) return ['按“开始”或“单步”，等客户来单。', false];
+  const far = Math.abs(d) > thr;
+  if (G.level === 1) {
+    if (far && !G.autoHedge) return [`整体涨跌效果${deltaText(d)}，离 0 太远。去下单区按“一键调回 0”，用股票${tradeText(-d)}。`, true];
+    return [`涨跌效果接近 0 ✓。继续看：股价涨了你要买、跌了你要卖（${gm < 0 ? '因为你做空 Gamma' : 'Gamma 不为 0'}）。`, false];
+  }
+  if (G.level === 2) {
+    if (Math.abs(gm) > 50) return [`现在${gm < 0 ? '做空' : '做多'} Gamma ${fmt.int(gm)} 股/每元。去下单区“期权”看“需要张数”，向其他做市商${gm < 0 ? '买入' : '卖出'}来抵掉。`, true];
+    if (far) return [`Gamma 已经很小了 ✓。再用股票把涨跌效果调回 0（${tradeText(-d)}）。`, true];
+    return ['Gamma 和 Delta 都接近 0 ✓。看股价动时你几乎不用再买卖，再看看第三行 Theta 变成了多少。', false];
+  }
+  if (G.level === 3) {
+    const pt = G.pattern;
+    return [gm < 0
+      ? `你在做空 Gamma。自动对冲已经涨了买 ${pt.upBuy} 次、跌了卖 ${pt.downSell} 次。每步收 Theta ${fmt.money(gk.theta)}。`
+      : `你在做多 Gamma。自动对冲已经涨了卖 ${pt.upSell} 次、跌了买 ${pt.downBuy} 次。每步付 Theta ${fmt.money(gk.theta)}。`, false];
+  }
+  if (G.level === 4) {
+    const mult = G.gamma0 > 0 ? Math.abs(gm) / G.gamma0 : 0;
+    return [`还剩 ${G.minutes} 分钟。现在股价动 1 块要对冲约 ${fmt.int(gm)} 股，是开局（${fmt.int(G.gamma0)} 股）的 ${mult.toFixed(1)} 倍。`, mult > 2];
+  }
+  const dist = G.S - PIN;
+  return [`股价离 767 ${dist >= 0 ? '高' : '低'} ${fmt.px(Math.abs(dist))} 元。你${gm < 0 ? '做空' : '做多'} Gamma ${fmt.int(gm)} 股/每元：${gm < 0 ? '对冲会顺着涨跌去买卖，把价格推远' : '对冲会逆着涨跌去买卖，把价格拉回 767'}。`, false];
+}
+
+function renderRisk() {
+  const gk = Core.greeks(G), L = LEVELS[G.level];
+  const [h, warn] = hintText();
+  $('hint').textContent = h; $('hint').className = 'hint' + (warn ? ' warn' : '');
+
+  const d = gk.delta, r = Math.round(d), thr = 100 * L.scale;
+  const near = Math.abs(d) <= thr;
+  $('vDelta').innerHTML = `<span class="${fmt.cls(r)}">${deltaText(d)}</span><span class="tag ${near ? '' : 'neg'}" style="color:${near ? 'var(--accent)' : 'var(--warn)'}">${near ? '接近 0' : '偏离 0'}</span>`;
+  $('eDelta').textContent = r === 0
+    ? '股价小幅涨跌，你的总盈亏几乎不变。这就是 Delta 对冲的目标。'
+    : `股价每涨 1 块，总盈亏大约 ${fmt.money(d)}；每跌 1 块，大约 ${fmt.money(-d)}。这是期权带来的涨跌效果，不是真的持有这么多股票。`;
+
+  const gm = gk.gamma, gr = Math.round(gm);
+  const gLabel = Math.abs(gm) < 1 ? '' : (gm < 0 ? '做空 Gamma' : '做多 Gamma');
+  $('vGamma').innerHTML = `<span class="${fmt.cls(gr)}">${fmt.sint(gm)} 股</span><span class="unit">/ 每 1 元</span>${gLabel ? `<span class="tag ${fmt.cls(gr)}">${gLabel}</span>` : ''}`;
+  $('eGamma').textContent = Math.abs(gm) < 1
+    ? '股价动了，上面的股数也几乎不变，不用追着对冲。'
+    : gm < 0
+      ? `股价涨 1 块，上面的股数会再减少 ${fmt.int(gm)} 股（更空）；跌 1 块，会增加 ${fmt.int(gm)} 股（更多）。股价一动，涨跌效果总往对你不利的方向变，这就是做空 Gamma，所以对冲时只能涨了买、跌了卖。`
+      : `股价涨 1 块，上面的股数会增加 ${fmt.int(gm)} 股（更多）；跌 1 块，会减少 ${fmt.int(gm)} 股（更空）。股价一动，涨跌效果总往对你有利的方向变，这就是做多 Gamma，对冲时是涨了卖、跌了买。`;
+
+  const th = gk.theta;
+  $('vTheta').innerHTML = `<span class="${fmt.cls(th)}">${fmt.money(th)}</span><span class="unit">/ 每步</span>`;
+  $('eTheta').textContent = Math.abs(th) < 0.005
+    ? '现在没有时间损耗。'
+    : th > 0
+      ? '你卖出的期权每过 1 分钟就自己变便宜一点，你赚这部分。这是做空 Gamma 换来的收入。'
+      : '你买入的期权每过 1 分钟就自己变便宜一点，你亏这部分。这是做多 Gamma 要付的“房租”。';
+}
+
+function pvCard(p, d) {
+  return `<div class="pvhead">股价 ${d > 0 ? '+1' : '−1'} → ${fmt.px(p.S)}</div>
+    <dl>
+      <dt>整体涨跌效果会变成</dt><dd class="${fmt.cls(Math.round(p.delta))}">${deltaText(p.delta)}</dd>
+      <dt>为了回到 0，需要</dt><dd>${tradeText(p.need)}</dd>
+      <dt>这一下赚/亏</dt><dd class="${fmt.cls(p.pnl)}">${fmt.money(p.pnl)}</dd>
+    </dl>`;
+}
+function renderPreview() {
+  const up = Core.preview(G, 1), dn = Core.preview(G, -1);
+  $('pvUp').innerHTML = pvCard(up, 1);
+  $('pvDn').innerHTML = pvCard(dn, -1);
+  let note = '';
+  if (up.pnl < -1 && dn.pnl < -1) note = '涨也亏、跌也亏：这就是做空 Gamma 的样子。股价不动时，你靠 Theta 赚钱。';
+  else if (up.pnl > 1 && dn.pnl > 1) note = '涨也赚、跌也赚：这就是做多 Gamma 的样子。代价是每步付 Theta。';
+  else if (Object.keys(G.pos).length) note = '一边赚一边亏：说明整体涨跌效果还没调回 0，你在赌方向。';
+  $('pvNote').textContent = note;
+  const c = G.lastCheck, el = $('pvCheck');
+  if (c) {
+    const match = Math.abs(c.act.delta - c.pre.delta) < 0.5 && Math.abs(c.act.pnl - c.pre.pnl) < 0.5;
+    el.hidden = false;
+    el.innerHTML = `刚才股价 ${c.d > 0 ? '+1' : '−1'}：实际涨跌效果变成 <b>${deltaText(c.act.delta)}</b>，持仓市值变化 <b>${fmt.money(c.act.pnl)}</b>。
+      变动前的预览：${deltaText(c.pre.delta)}、${fmt.money(c.pre.pnl)}。${match ? '一致 ✓' : '不一致 ✗'}`;
+  } else el.hidden = true;
+}
+
+function renderTicket() {
+  const L = LEVELS[G.level], gk = Core.greeks(G), T = P.years(G.minutes), v = SET.iv;
+  const h = SET.stockHalf;
+  $('stkQuote').textContent = `你买的价 ${fmt.px(G.S + h)} · 你卖的价 ${fmt.px(G.S - h)}（中间价 ${fmt.px(G.S)} ± ${h.toFixed(2)}）`;
+  const need = Math.round(-gk.delta);
+  $('stkZero').disabled = G.ended || need === 0;
+  $('stkZero').textContent = need === 0 ? '一键调回 0（已经是 0）' : `一键调回 0：${tradeText(need)}`;
+  $('stkZeroInfo').textContent = `现在整体涨跌效果${deltaText(gk.delta)}，要回到 0 就${tradeText(need)}。`;
+  ['stkBuy', 'stkSell'].forEach(id => $(id).disabled = G.ended);
+
+  const locked = !L.allowOpt;
+  $('optLock').hidden = !locked;
+  ['optBuy', 'optSell', 'optK', 'optQty'].forEach(id => $(id).disabled = locked || G.ended);
+  $('segType').querySelectorAll('button').forEach(b => b.disabled = locked);
+  const sel = $('optK');
+  if (!sel.options.length) sel.innerHTML = STRIKES.map(k => `<option value="${k}">${k}</option>`).join('');
+  sel.value = String(UI.optK);
+  setPressed('segType', UI.optType);
+
+  const type = UI.optType, K = UI.optK;
+  const theo = Core.theo(G, type, K), half = SET.mmSpread / 2;
+  const og = P.gamma(type, G.S, K, T, v), od = P.delta(type, G.S, K, T, v);
+  $('optQuote').innerHTML = `${K} ${TYPE_NAME[type]}：理论价 ${fmt.px(theo)} · 你买 ${fmt.px(theo + half)} · 你卖 ${fmt.px(Math.max(theo - half, 0))}<br>每张 Delta ${od.toFixed(3)}（涨跌效果 ${fmt.sint(od * 100)} 股）· Gamma ${fmt.g(og)}（${(og * 100).toFixed(2)} 股/每元）`;
+
+  const gm = gk.gamma;
+  const n = og > 1e-9 ? gm / (og * 100) : 0;
+  const nr = Math.round(n);
+  if (Math.abs(gm) < 1) {
+    $('optNeed').innerHTML = '<span>现在整体 Gamma 接近 0，不需要用期权抵。</span>';
+  } else if (og < 1e-6) {
+    $('optNeed').innerHTML = '<span>这个期权的 Gamma 几乎是 0，抵不了 Gamma。换一个离股价近的行权价。</span>';
+  } else {
+    $('optNeed').innerHTML = `<span>按等式需要多少张才能抵掉 Gamma：</span>
+      <span class="num">需要张数 = 当前整体 Gamma 股数 ÷（该期权 Gamma × 100）<br>= ${fmt.sint(gm)} ÷ (${fmt.g(og)} × 100) = <b>${n.toFixed(1)}</b></span>
+      <span>${n < 0 ? `负号表示你在做空 Gamma，要<b>买入 ${fmt.int(nr)} 张</b>才能抵掉。` : `正号表示你在做多 Gamma，要<b>卖出 ${fmt.int(nr)} 张</b>才能抵掉。`}</span>
+      <button class="btn small" id="fillNeed" ${locked || G.ended ? 'disabled' : ''}>把 ${fmt.int(nr)} 张填进张数</button>`;
+  }
+
+  // 期权一览
+  let rows = `<thead><tr><th>行权价</th><th>Call 理论价</th><th>Call Delta</th><th>Put 理论价</th><th>Put Delta</th><th>每张 Gamma（股/元）</th></tr></thead><tbody>`;
+  const atm = STRIKES.reduce((a, b) => Math.abs(b - G.S) < Math.abs(a - G.S) ? b : a);
+  for (const k of STRIKES) {
+    const c = P.price('C', G.S, k, T, v), p = P.price('P', G.S, k, T, v);
+    const cd = P.delta('C', G.S, k, T, v), pd = P.delta('P', G.S, k, T, v), gg = P.gamma('C', G.S, k, T, v);
+    const sc = k === K && type === 'C' ? ' sel' : '', sp = k === K && type === 'P' ? ' sel' : '';
+    rows += `<tr class="${k === atm ? 'atm' : ''}"><td>${k}</td>
+      <td data-pick="C${k}" class="${sc}">${fmt.px(c)}</td><td data-pick="C${k}" class="${sc}">${cd.toFixed(3)}</td>
+      <td data-pick="P${k}" class="${sp}">${fmt.px(p)}</td><td data-pick="P${k}" class="${sp}">${pd.toFixed(3)}</td>
+      <td>${(gg * 100).toFixed(2)}</td></tr>`;
+  }
+  $('chain').innerHTML = rows + '</tbody>';
+}
+
+function renderPositions() {
+  const T = P.years(G.minutes), v = SET.iv, L = LEVELS[G.level];
+  const keys = Object.keys(G.pos).sort((a, b) => (a === 'STK') - (b === 'STK') || a.localeCompare(b));
+  let html = `<thead><tr><th>品种</th><th>方向 · 数量</th><th>涨跌效果（股）</th><th>浮动盈亏</th><th></th><th>Gamma（股/元）</th><th>Delta/张</th><th>Gamma/张</th><th>均价 → 现价</th></tr></thead><tbody>`;
+  if (!keys.length) html += `<tr><td class="txt muted" colspan="9">还没有持仓。接一单客户订单试试。</td></tr>`;
+  let tD = 0, tG = 0, tF = 0;
+  for (const k of keys) {
+    const p = G.pos[k];
+    if (p.type === 'S') {
+      const fl = (G.S - p.avg) * p.qty;
+      tD += p.qty; tF += fl;
+      html += `<tr><td class="txt">SPY 股票</td><td class="txt ${fmt.cls(p.qty)}">${p.qty > 0 ? '做多' : '做空'} ${fmt.int(p.qty)} 股</td>
+        <td class="${fmt.cls(p.qty)}">${fmt.sint(p.qty)}</td><td class="${fmt.cls(fl)}">${fmt.money(fl)}</td>
+        <td><button class="btn small" data-close="${k}" ${G.ended ? 'disabled' : ''}>平仓</button></td>
+        <td>0</td><td>1</td><td>0</td><td>${fmt.px(p.avg)} → ${fmt.px(G.S)}</td></tr>`;
+    } else {
+      const d = P.delta(p.type, G.S, p.K, T, v), gg = P.gamma(p.type, G.S, p.K, T, v), px = P.price(p.type, G.S, p.K, T, v);
+      const ds = d * MULT * p.qty, gs = gg * MULT * p.qty, fl = (px - p.avg) * MULT * p.qty;
+      tD += ds; tG += gs; tF += fl;
+      const canClose = L.allowOpt && !G.ended;
+      html += `<tr><td class="txt">${p.K} ${TYPE_NAME[p.type]}</td><td class="txt ${fmt.cls(p.qty)}">${p.qty > 0 ? '买入' : '卖出'} ${fmt.int(p.qty)} 张</td>
+        <td class="${fmt.cls(ds)}">${fmt.sint(ds)}</td><td class="${fmt.cls(fl)}">${fmt.money(fl)}</td>
+        <td><button class="btn small" data-close="${k}" ${canClose ? '' : 'disabled'} title="${L.allowOpt ? '向其他做市商平仓' : '本关只能用股票'}">平仓</button></td>
+        <td class="${fmt.cls(gs)}">${fmt.sint(gs)}</td><td>${d.toFixed(3)}</td><td>${fmt.g(gg)}</td><td>${fmt.px(p.avg)} → ${fmt.px(px)}</td></tr>`;
+    }
+  }
+  if (keys.length) html += `<tr class="foot"><td class="txt" colspan="2">合计</td><td class="${fmt.cls(tD)}">${fmt.sint(tD)}</td><td class="${fmt.cls(tF)}">${fmt.money(tF)}</td><td></td><td class="${fmt.cls(tG)}">${fmt.sint(tG)}</td><td colspan="3"></td></tr>`;
+  $('posTable').innerHTML = html + '</tbody>';
+}
+
+function pnlRow(label, val, note, cls = '') {
+  return `<div class="pnl-row ${cls}"><span>${label}</span><b class="${fmt.cls(val)}">${fmt.money(val)}</b>${note ? `<small>${note}</small>` : ''}</div>`;
+}
+function renderPnl() {
+  const b = Core.breakdown(G);
+  $('pnlTotal').textContent = fmt.money(b.total);
+  $('pnlTotal').className = fmt.cls(b.total);
+  const gLabel = b.gamma < -0.5 ? 'Gamma 盈亏：高买低卖的亏损' : b.gamma > 0.5 ? 'Gamma 盈亏：低买高卖的盈利' : 'Gamma 盈亏';
+  $('pnlList').innerHTML =
+    pnlRow('报价差收入', b.spread, '客户成交价和当时理论价的差。做市商最稳定的收入。') +
+    pnlRow('对冲成本', b.hedge, '向其他做市商买卖期权、在市场买卖股票时付出的价差。') +
+    pnlRow(gLabel, b.gamma, '每步按 0.5 × Gamma 股数 × 股价变动² 累计。') +
+    pnlRow('Theta 盈亏', b.theta, '每步的时间损耗累计。') +
+    pnlRow('方向盈亏', b.delta, '涨跌效果没调回 0 时，股价方向带来的盈亏。对冲得好就接近 0。') +
+    pnlRow('其他', b.other, '高阶误差、跳空、改波动率造成的部分。') +
+    pnlRow('以上各项合计', b.parts + b.other, `等于总盈亏。前五项加起来 ${fmt.money(b.parts)}，约等于总盈亏 ${fmt.money(b.total)}。`, 'sum');
+
+  let extra = pnlRow('股票上标出的“高买低卖”合计', G.stockLoss, '从交易记录的角度看同一件事（按均价算已实现盈亏），不要和上面相加。') +
+    pnlRow('股票上标出的“低买高卖”合计', G.stockGain, '');
+  if (LEVELS[G.level].biasToggle) {
+    const pt = G.pattern;
+    extra += `<div class="pnl-row"><span>本局自动对冲：涨了买 ${pt.upBuy} 次 · 跌了卖 ${pt.downSell} 次 · 涨了卖 ${pt.upSell} 次 · 跌了买 ${pt.downBuy} 次</span><b></b></div>`;
+    const runs = UI.runs[G.level] || [];
+    if (runs.length) {
+      const isL5 = G.level === 5;
+      extra += `<div class="pnl-row"><span><b style="font-family:var(--font-ui)">对比记录</b>（切换偏向或结束时保存）</span><b></b><small><div class="tablewrap" style="margin-top:6px"><table>
+        <thead><tr><th>客户偏向</th><th>步数</th><th>Gamma</th><th>Theta</th><th>总盈亏</th>${isL5 ? '<th>平均离 767</th><th>最远</th>' : '<th>涨买/跌卖</th><th>涨卖/跌买</th>'}</tr></thead><tbody>` +
+        runs.map(r => `<tr><td class="txt">${r.bias === 'buy' ? '在买（空 Gamma）' : '在卖（多 Gamma）'}</td><td>${r.steps}</td>
+          <td class="${fmt.cls(r.gamma)}">${fmt.money(r.gamma)}</td><td class="${fmt.cls(r.theta)}">${fmt.money(r.theta)}</td><td class="${fmt.cls(r.total)}">${fmt.money(r.total)}</td>
+          ${isL5 ? `<td>${fmt.px(r.avgDist)}</td><td>${fmt.px(r.maxDist)}</td>` : `<td>${r.pattern.upBuy}/${r.pattern.downSell}</td><td>${r.pattern.upSell}/${r.pattern.downBuy}</td>`}</tr>`).join('') +
+        '</tbody></table></div></small></div>';
+    }
+  }
+  $('pnlExtra').innerHTML = extra;
+}
+
+function renderLog() {
+  $('log').innerHTML = G.trades.slice(0, 120).map(t => {
+    const flag = t.flag ? `<span class="flag ${t.flag.kind}">${t.flag.text}</span>` : '';
+    return `<li><span class="when">第 ${t.step} 步 · 剩 ${t.m} 分钟</span><span>${t.text}${flag}</span></li>`;
+  }).join('') || '<li class="muted">还没有成交。</li>';
+}
+
+function renderOrder() {
+  const o = G.order, card = $('orderCard');
+  card.hidden = !o;
+  document.body.classList.toggle('has-order', !!o);
+  if (!o) return;
+  const half = SET.clientSpread / 2;
+  const legs = o.type === 'X' ? ['C', 'P'] : [o.type];
+  const buy = o.side === 'buy';
+  const inst = o.type === 'X' ? `${o.K} 跨式（Call 和 Put 各 ${fmt.int(o.qty)} 张）` : `${o.K} ${TYPE_NAME[o.type]}`;
+  const priceLines = legs.map(t => {
+    const theo = Core.theo(G, t, o.K);
+    return `${TYPE_NAME[t]}：你的${buy ? '卖价' : '买价'} ${fmt.px(theo + (buy ? half : -half))} = 理论价 ${fmt.px(theo)} ${buy ? '+' : '−'} ${half.toFixed(2)}`;
+  });
+  const income = legs.length * o.qty * MULT * half;
+  // 接单后的风险
+  const sim = JSON.parse(JSON.stringify({ ...G, set: undefined, trades: [] }));
+  sim.set = SET; sim.trades = [];
+  const before = Core.greeks(G);
+  Core.clientFill(sim, o, '');
+  if (sim.autoHedge) Core.autoHedge(sim);
+  const after = Core.greeks(sim);
+  $('orderInner').innerHTML = `
+    <div class="ask">客户要${buy ? '买' : '卖'} ${fmt.int(o.qty)} 张 ${inst}</div>
+    <div class="det">
+      ${priceLines.map(s => `<span class="num">${s}</span>`).join('')}
+      <span>接单的报价差收入：<b class="pos">${fmt.money(income)}</b></span>
+      <span>接单后${G.autoHedge ? '（并自动对冲）' : ''}：涨跌效果 ${deltaText(before.delta)} → <b>${deltaText(after.delta)}</b></span>
+      <span>Gamma ${fmt.sint(before.gamma)} → <b class="${fmt.cls(after.gamma)}">${fmt.sint(after.gamma)}</b> 股/每元${Math.abs(after.gamma) >= 1 ? (after.gamma < 0 ? '（做空 Gamma）' : '（做多 Gamma）') : ''}</span>
+      <span class="muted">客户最多再等 ${o.ttl} 步。拒绝没有收益。</span>
+    </div>
+    <div class="row"><button class="btn" data-order="reject">拒绝</button><button class="btn primary" data-order="accept">接单</button></div>`;
+}
+
+/* ---------- 画图（canvas） ---------- */
+function canvasCtx(c) {
+  const dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+  if (!w || !h) return null;
+  if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
+  const ctx = c.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
+function tokens() {
+  const cs = getComputedStyle(document.documentElement);
+  const t = n => cs.getPropertyValue(n).trim();
+  return { ink: t('--ink'), muted: t('--muted'), line: t('--line'), accent: t('--accent'), warn: t('--warn'), pos: t('--pos'), neg: t('--neg'), panel: t('--panel'), soft: t('--accent-soft') };
+}
+function renderCharts() {
+  const tk = tokens();
+  drawSpark(tk); drawPrice(tk); drawGamma(tk);
+  const n = Math.max(G.step, 1);
+  const rw = S0 * SET.iv * Math.sqrt(n / P.MIN_PER_YEAR);
+  $('distInfo').textContent = G.level === 5
+    ? `平均离 767：${fmt.px(G.sumDist / n)} 元 · 不推股价时约 ±${fmt.px(rw)} 元`
+    : `开盘 ${fmt.px(S0)} · 现在 ${fmt.px(G.S)}`;
+  $('gammaInfo').textContent = `开局 ${fmt.int(G.gamma0)} → 现在 ${fmt.int(Core.greeks(G).gamma)} 股/每元`;
+}
+function drawSpark(tk) {
+  const r = canvasCtx($('spark')); if (!r) return;
+  const { ctx, w, h } = r, pts = G.hist.slice(-150);
+  let lo = Math.min(...pts.map(p => p.S)), hi = Math.max(...pts.map(p => p.S));
+  if (hi - lo < 1) { const m = (hi + lo) / 2; lo = m - 0.5; hi = m + 0.5; }
+  const x = i => pts.length < 2 ? w : i / (pts.length - 1) * (w - 4) + 2, y = s => h - 3 - (s - lo) / (hi - lo) * (h - 6);
+  const col = G.S >= S0 ? tk.pos : tk.neg;
+  ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(x(i), y(p.S)) : ctx.moveTo(x(i), y(p.S)));
+  ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.lineTo(x(pts.length - 1), h); ctx.lineTo(x(0), h); ctx.closePath();
+  ctx.globalAlpha = 0.12; ctx.fillStyle = col; ctx.fill(); ctx.globalAlpha = 1;
+}
+function drawPrice(tk) {
+  const r = canvasCtx($('cPrice')); if (!r) return;
+  const { ctx, w, h } = r, pts = G.hist;
+  const pad = { l: 40, r: 50, t: 8, b: 18 };
+  let lo = Math.min(764, ...pts.map(p => p.S)) - 0.5, hi = Math.max(770, ...pts.map(p => p.S)) + 0.5;
+  const X = i => pad.l + (pts.length < 2 ? 1 : i / (pts.length - 1)) * (w - pad.l - pad.r);
+  const Y = s => pad.t + (hi - s) / (hi - lo) * (h - pad.t - pad.b);
+  ctx.font = '11px ' + getComputedStyle(document.body).fontFamily;
+  ctx.textBaseline = 'middle';
+  for (const k of STRIKES) {
+    if (k < lo || k > hi) continue;
+    ctx.beginPath(); ctx.setLineDash(k === PIN ? [] : [2, 3]);
+    ctx.strokeStyle = k === PIN ? tk.muted : tk.line; ctx.lineWidth = k === PIN ? 1.5 : 1;
+    ctx.moveTo(pad.l, Y(k)); ctx.lineTo(w - pad.r, Y(k)); ctx.stroke();
+    ctx.fillStyle = tk.muted; ctx.textAlign = 'right'; ctx.fillText(String(k), pad.l - 6, Y(k));
+  }
+  ctx.setLineDash([]);
+  ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(X(i), Y(p.S)) : ctx.moveTo(X(i), Y(p.S)));
+  ctx.strokeStyle = tk.accent; ctx.lineWidth = 1.8; ctx.stroke();
+  const lx = X(pts.length - 1), ly = Y(G.S);
+  ctx.beginPath(); ctx.arc(lx, ly, 3.5, 0, Math.PI * 2); ctx.fillStyle = tk.accent; ctx.fill();
+  ctx.fillStyle = tk.ink; ctx.textAlign = 'left'; ctx.fillText(fmt.px(G.S), lx + 6, ly);
+  ctx.fillStyle = tk.muted; ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left'; ctx.fillText(`剩 ${G.startMin} 分`, pad.l, h - 4);
+  ctx.textAlign = 'right'; ctx.fillText(G.minutes > 0 ? `剩 ${G.minutes} 分` : '到期', w - pad.r, h - 4);
+}
+function drawGamma(tk) {
+  const r = canvasCtx($('cGamma')); if (!r) return;
+  const { ctx, w, h } = r;
+  const pad = { l: 52, r: 12, t: 10, b: 18 };
+  const hist = G.gHist.map(p => ({ m: p.m, g: Math.abs(p.g) }));
+  const proj = [];
+  if (!G.ended && G.minutes > 0) {
+    const stride = Math.max(1, Math.ceil(G.minutes / 90));
+    for (let m = G.minutes; m >= 1; m -= stride) proj.push({ m, g: Math.abs(Core.greeks(G, G.S, m).gamma) });
+    if (proj[proj.length - 1].m !== 1) proj.push({ m: 1, g: Math.abs(Core.greeks(G, G.S, 1).gamma) });
+  }
+  const maxG = Math.max(10, ...hist.map(p => p.g), ...proj.map(p => p.g)) * 1.08;
+  const X = m => pad.l + (G.startMin - m) / G.startMin * (w - pad.l - pad.r);
+  const Y = g => pad.t + (1 - g / maxG) * (h - pad.t - pad.b);
+  ctx.font = '11px ' + getComputedStyle(document.body).fontFamily;
+  ctx.strokeStyle = tk.line; ctx.lineWidth = 1;
+  [0, 0.5, 1].forEach(f => {
+    const gy = Y(maxG / 1.08 * f);
+    ctx.beginPath(); ctx.moveTo(pad.l, gy); ctx.lineTo(w - pad.r, gy); ctx.stroke();
+    ctx.fillStyle = tk.muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillText(fmt.int(maxG / 1.08 * f), pad.l - 6, gy);
+  });
+  if (proj.length > 1) {
+    ctx.beginPath(); ctx.setLineDash([5, 4]);
+    proj.forEach((p, i) => i ? ctx.lineTo(X(p.m), Y(p.g)) : ctx.moveTo(X(p.m), Y(p.g)));
+    ctx.strokeStyle = tk.warn; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (hist.length) {
+    ctx.beginPath();
+    hist.forEach((p, i) => i ? ctx.lineTo(X(p.m), Y(p.g)) : ctx.moveTo(X(p.m), Y(p.g)));
+    ctx.strokeStyle = tk.accent; ctx.lineWidth = 2; ctx.stroke();
+    const last = hist[hist.length - 1];
+    ctx.beginPath(); ctx.arc(X(last.m), Y(last.g), 3.5, 0, Math.PI * 2); ctx.fillStyle = tk.accent; ctx.fill();
+  }
+  ctx.fillStyle = tk.muted; ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'left'; ctx.fillText(`剩 ${G.startMin} 分`, pad.l, h - 4);
+  ctx.textAlign = 'right'; ctx.fillText('到期', w - pad.r, h - 4);
+}
+
+/* ---------- 弹窗：关卡说明与小结 ---------- */
+function openModal(html) { stop(); $('sheet').innerHTML = html; $('modal').hidden = false; renderControls(); $('sheet').scrollTop = 0; const b = $('sheet').querySelector('.btn.primary'); if (b) b.focus({ preventScroll: true }); }
+function closeModal() { $('modal').hidden = true; }
+function openIntro() {
+  const L = LEVELS[G.level], it = L.intro;
+  openModal(`<p class="eyebrow">第 ${G.level} 关 / 共 5 关</p><h2>${L.name}</h2>
+    <h3>为什么</h3>${it.why.map(s => `<p>${s}</p>`).join('')}
+    <h3>目标</h3><ul>${it.goal.map(s => `<li>${s}</li>`).join('')}</ul>
+    <h3>怎么玩</h3><ul>${it.how.map(s => `<li>${s}</li>`).join('')}</ul>
+    <div class="row"><button class="btn primary" data-act="close">开始这一关</button></div>`);
+}
+function stat(label, val, money = true) { return `<div class="stat"><span>${label}</span><b class="${money ? fmt.cls(val) : ''}">${money ? fmt.money(val) : val}</b></div>`; }
+function openSummary() {
+  const L = LEVELS[G.level], b = Core.breakdown(G), gk = Core.greeks(G);
+  const dyn = [];
+  dyn.push(`本关走了 ${G.step} 步。报价差收入 ${fmt.money(b.spread)}，Theta ${fmt.money(b.theta)}，Gamma ${fmt.money(b.gamma)}，对冲成本 ${fmt.money(b.hedge)}，方向盈亏 ${fmt.money(b.delta)}。`);
+  if (G.level === 1) dyn.push(`股票对冲里标出“高买低卖”的合计亏损 ${fmt.money(G.stockLoss)}，“低买高卖”合计 ${fmt.money(G.stockGain)}。`);
+  if (G.level === 2) dyn.push(`本关每步 Theta 收入最高时是 ${fmt.money(G.thetaPeak)}，结束时是 ${fmt.money(gk.theta)}。为抵 Gamma 付出的对冲成本 ${fmt.money(b.hedge)}。`);
+  if (G.level === 3) { const pt = G.pattern; dyn.push(`自动对冲：涨了买 ${pt.upBuy} 次、跌了卖 ${pt.downSell} 次、涨了卖 ${pt.upSell} 次、跌了买 ${pt.downBuy} 次。`); }
+  if (G.level === 4) dyn.push(`开局时股价动 1 块要对冲约 ${fmt.int(G.gamma0)} 股；本关最高时要对冲约 ${fmt.int(G.gammaPeak)} 股，是开局的 ${(G.gammaPeak / Math.max(G.gamma0, 1)).toFixed(1)} 倍。`);
+  if (G.level === 5) {
+    const n = Math.max(G.step, 1), rw = S0 * SET.iv * Math.sqrt(n / P.MIN_PER_YEAR);
+    dyn.push(`本局你${G.bias === 'sell' ? '做多' : '做空'} Gamma。股价平均离 767 有 ${fmt.px(G.sumDist / n)} 元，最远 ${fmt.px(G.maxDist)} 元。没有对冲推股价时，这么长时间股价通常会离开约 ±${fmt.px(rw)} 元。`);
+  }
+  const head = G.endReason === 'expiry' ? '已到期结算：价内期权按内在价值现金结算，价外归零，股票按收盘价计值' : '提前结束：持仓按当前理论价计值';
+  openModal(`<p class="eyebrow">第 ${G.level} 关 · ${head}</p><h2>本关小结</h2>
+    <div class="stats">${stat('总盈亏（按市值）', b.total)}${stat('报价差收入', b.spread)}${stat('对冲成本', b.hedge)}${stat('Gamma 盈亏', b.gamma)}${stat('Theta 盈亏', b.theta)}${stat('方向 + 其他', b.delta + b.other)}</div>
+    <h3>你这一关发生了什么</h3>${dyn.map(s => `<p>${s}</p>`).join('')}
+    <h3>要点</h3>${L.summary(G).map(s => `<p>${s}</p>`).join('')}
+    <div class="row"><button class="btn" data-act="close">回到盘面</button><button class="btn" data-act="retry">再玩一次</button>${G.level < 5 ? '<button class="btn primary" data-act="next">下一关</button>' : ''}</div>`);
+}
+
+/* =====================================================================
+ * 9. 事件
+ * ===================================================================== */
+function readQty(id) { const n = Math.floor(+$(id).value); return n > 0 ? n : 0; }
+function bind() {
+  $('btnPlay').onclick = () => UI.running ? (stop(), render()) : play();
+  $('btnStep').onclick = doStep;
+  $('segSpeed').onclick = e => { const v = e.target.dataset.v; if (!v) return; UI.speed = +v; if (UI.running) schedule(); renderControls(); };
+  $('segMode').onclick = e => { const v = e.target.dataset.v; if (!v) return; G.mode = v; render(); };
+  $('btnNews').onclick = () => { Core.news(G); render(); };
+  $('manualBox').querySelector('.nudges').onclick = e => { const d = +e.target.dataset.d; if (!d || G.ended) return; Core.nudge(G, d); render(); };
+  $('slider').oninput = e => { if (G.ended) return; Core.move(G, +e.target.value, G.minutes); G.lastCheck = null; render(); };
+  $('chkAuto').onchange = e => { G.autoHedge = e.target.checked; render(); };
+  $('chkPause').onchange = e => { SET.pauseOnOrder = e.target.checked; };
+  $('biasBox').onclick = e => {
+    const v = e.target.dataset.v; if (!v || v === G.bias) return;
+    if (LEVELS[G.level].biasToggle) { recordRun(); startLevel(G.level, v, false); }
+    else { G.bias = v; renderControls(); }
+  };
+  $('btnRestart').onclick = () => { recordRun(); startLevel(G.level, G.bias, false); };
+  $('btnEnd').onclick = () => endLevel('early');
+  $('levelTabs').onclick = e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.act === 'intro') return openIntro();
+    startLevel(+b.dataset.level);
+  };
+
+  $('stkBuy').onclick = () => { const q = readQty('stkQty'); if (!q) return; Core.stockTrade(G, q, 'hedge', stockWhy(q), true); render(); };
+  $('stkSell').onclick = () => { const q = readQty('stkQty'); if (!q) return; Core.stockTrade(G, -q, 'hedge', stockWhy(-q), true); render(); };
+  $('stkZero').onclick = () => { Core.stockTrade(G, -Core.greeks(G).delta, 'hedge', '为对冲 Delta', true); render(); };
+  $('optK').onchange = e => { UI.optK = +e.target.value; renderTicket(); };
+  $('segType').onclick = e => { const v = e.target.dataset.v; if (!v) return; UI.optType = v; renderTicket(); };
+  $('optBuy').onclick = () => optOrder(1);
+  $('optSell').onclick = () => optOrder(-1);
+  $('ticket').addEventListener('click', e => {
+    if (e.target.id === 'fillNeed') {
+      const gk = Core.greeks(G), og = P.gamma(UI.optType, G.S, UI.optK, P.years(G.minutes), SET.iv);
+      $('optQty').value = Math.abs(Math.round(gk.gamma / (og * 100)));
+      $('optQty').focus();
+    }
+    const td = e.target.closest('td[data-pick]');
+    if (td) { UI.optType = td.dataset.pick[0]; UI.optK = +td.dataset.pick.slice(1); renderTicket(); }
+  });
+  $('posTable').onclick = e => {
+    const k = e.target.dataset.close; if (!k) return;
+    const p = G.pos[k]; if (!p) return;
+    if (p.type === 'S') Core.stockTrade(G, -p.qty, 'hedge', '平仓股票', false);
+    else Core.optionTrade(G, p.type, p.K, -p.qty, '平仓');
+    render();
+  };
+  $('orderCard').onclick = e => {
+    const a = e.target.dataset.order; if (!a) return;
+    a === 'accept' ? Core.acceptOrder(G) : Core.rejectOrder(G);
+    render();
+  };
+  $('sheet').onclick = e => {
+    const a = e.target.dataset.act; if (!a) return;
+    closeModal();
+    if (a === 'retry') startLevel(G.level, G.bias, false);
+    else if (a === 'next') startLevel(G.level + 1);
+    else render();
+  };
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('modal').hidden) { closeModal(); render(); } });
+
+  // 设置
+  $('setIv').oninput = e => { SET.iv = +e.target.value / 100; $('ivVal').textContent = e.target.value + '%'; render(); };
+  $('setClient').onchange = e => { SET.clientSpread = Math.max(0, +e.target.value || 0); render(); };
+  $('setMM').onchange = e => { SET.mmSpread = Math.max(0, +e.target.value || 0); render(); };
+  $('setStk').onchange = e => { SET.stockHalf = Math.max(0, +e.target.value || 0); render(); };
+  $('setImpact').onchange = e => { SET.impact = Math.max(0, +e.target.value || 0); render(); };
+  $('setPull').onchange = e => { SET.pull[G.level] = Math.max(0, +e.target.value || 0); };
+  $('setStart').onchange = e => { const v = Math.round(+e.target.value); if (v >= 5) SET.startMin[G.level] = Math.min(v, 1950); };
+  $('segColors').onclick = e => { const v = e.target.dataset.v; if (!v) return; SET.colors = v; applyLook(); render(); };
+  $('segTheme').onclick = e => { const v = e.target.dataset.v; if (!v) return; SET.theme = v; applyLook(); render(); };
+  $('btnRetest').onclick = showTests;
+  window.addEventListener('resize', () => G && renderCharts());
+  if (window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => G && renderCharts());
+}
+function stockWhy(q) {
+  const d = Core.greeks(G).delta;
+  return Math.abs(d + q) < Math.abs(d) ? '为对冲 Delta' : '手动下单（让涨跌效果离 0 更远）';
+}
+function optOrder(sign) {
+  const q = readQty('optQty'); if (!q || !LEVELS[G.level].allowOpt) return;
+  const og = P.gamma(UI.optType, G.S, UI.optK, P.years(G.minutes), SET.iv) * MULT * q * sign;
+  const gm = Core.greeks(G).gamma;
+  const why = Math.abs(gm + og) < Math.abs(gm) ? '为对冲 Gamma' : '手动下单期权';
+  Core.optionTrade(G, UI.optType, UI.optK, sign * q, why);
+  render();
+}
+function applyLook() {
+  const r = document.documentElement;
+  if (SET.theme === 'system') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', SET.theme);
+  r.setAttribute('data-colors', SET.colors);
+  setPressed('segColors', SET.colors); setPressed('segTheme', SET.theme);
+}
+function syncSettingsInputs() {
+  $('setIv').value = Math.round(SET.iv * 100); $('ivVal').textContent = Math.round(SET.iv * 100) + '%';
+  $('setClient').value = SET.clientSpread; $('setMM').value = SET.mmSpread; $('setStk').value = SET.stockHalf;
+  $('setImpact').value = SET.impact; $('setPull').value = SET.pull[G.level]; $('setStart').value = SET.startMin[G.level];
+}
+function showTests() {
+  const res = runSelfTests();
+  const passed = res.filter(r => r.pass).length;
+  $('testSummary').textContent = `自检：${passed}/${res.length} 通过`;
+  $('tests').innerHTML = res.map(r => `<li>${r.pass ? '✓' : '✗'} ${r.name}<br><span class="muted">${r.detail}</span></li>`).join('');
+  console.group(`做市商模拟器自检：${passed}/${res.length} 通过`);
+  res.forEach(r => console[r.pass ? 'log' : 'error'](`${r.pass ? '✓' : '✗'} ${r.name} — ${r.detail}`));
+  console.groupEnd();
+  window.__selfTests = res;
+  return res;
+}
+
+/* =====================================================================
+ * 10. 启动
+ * ===================================================================== */
+function boot(data) {
+  bind();
+  applyLook();
+  showTests();
+  if (data && data.G && data.SET) {
+    SET = data.SET; G = data.G; G.set = SET; UI.runs = data.runs || {};
+    applyLook(); syncSettingsInputs(); render();
+  } else {
+    const saved = +storeGet('mm-sim-level');
+    startLevel(LEVELS[saved] ? saved : 1);
+  }
+  window.claude?.hot?.snapshot?.(() => ({ G: JSON.parse(JSON.stringify({ ...G, set: undefined })), SET, runs: UI.runs }));
+}
+window.claude?.hot?.ready ? window.claude.hot.ready(boot) : boot(window.claude?.hot?.data ?? {});
+</script>
+</body>
+</html>
