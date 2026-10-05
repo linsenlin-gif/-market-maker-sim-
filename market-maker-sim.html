@@ -21,6 +21,7 @@
   --green: #0e8753;
   --warn: #b0640a;
   --warn-soft: #f6e8d2;
+  --warn-ink: #ffffff;
   --call: #1b8aa0;
   --put: #8a4fd0;
   --scrim: rgba(15, 22, 30, 0.5);
@@ -34,7 +35,7 @@
   :root:not([data-theme="light"]) {
     --bg: #0d1217; --panel: #161e26; --panel-2: #1d2731; --ink: #e4ebf2; --muted: #93a2b2; --line: #2a3541; --chip: #24303b;
     --accent: #7aa2ff; --accent-ink: #0b1220; --accent-soft: #1f2d48;
-    --red: #ff6a5c; --green: #3bcf8b; --warn: #f0b73c; --warn-soft: #3a2f17;
+    --red: #ff6a5c; --green: #3bcf8b; --warn: #f0b73c; --warn-soft: #3a2f17; --warn-ink: #1d1404;
     --call: #4cc3d9; --put: #b98cf0; --scrim: rgba(0, 0, 0, 0.6);
     color-scheme: dark;
   }
@@ -42,7 +43,7 @@
 :root[data-theme="dark"] {
   --bg: #0d1217; --panel: #161e26; --panel-2: #1d2731; --ink: #e4ebf2; --muted: #93a2b2; --line: #2a3541; --chip: #24303b;
   --accent: #7aa2ff; --accent-ink: #0b1220; --accent-soft: #1f2d48;
-  --red: #ff6a5c; --green: #3bcf8b; --warn: #f0b73c; --warn-soft: #3a2f17;
+  --red: #ff6a5c; --green: #3bcf8b; --warn: #f0b73c; --warn-soft: #3a2f17; --warn-ink: #1d1404;
   --call: #4cc3d9; --put: #b98cf0; --scrim: rgba(0, 0, 0, 0.6);
   color-scheme: dark;
 }
@@ -118,6 +119,13 @@ p { margin: 0; }
   #btnSpeed { display: inline-grid; }
   .sym, .chg .pct { display: none; }
 }
+/* 竖屏（窄于 1000px）：顶部条一行放下——“关卡 / 实验室”并入关卡菜单，自动/手动合成一个按钮，GEX 状态徽章移到价格舞台标题里 */
+@media (max-width: 999px) {
+  #segView, #segMode, #tbBadge { display: none !important; }
+  #btnMode { display: inline-grid !important; }
+  .tb-time span { display: none; }
+  .tb-level { max-width: 220px; }
+}
 
 /* ---------- 主区域 ---------- */
 .main { min-height: 0; padding: 10px 16px; overflow: hidden; }
@@ -133,7 +141,7 @@ p { margin: 0; }
 .tabbed.on { display: flex !important; }
 #labView {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 44fr) minmax(0, 24fr) minmax(0, 32fr);
+  grid-template-rows: minmax(0, 54fr) minmax(0, 20fr) minmax(0, 26fr);
   grid-template-areas: "chart" "side" "ctrl";
 }
 #cLabChart { grid-area: chart; }
@@ -168,7 +176,7 @@ p { margin: 0; }
 @media (min-width: 1000px) and (min-aspect-ratio: 1/1) and (min-height: 560px) {
   #levelView {
     grid-template-columns: minmax(0, 62fr) minmax(0, 38fr);
-    grid-template-rows: minmax(0, 48fr) minmax(0, 7fr) minmax(0, 12fr) minmax(0, 33fr);
+    grid-template-rows: minmax(0, 48fr) minmax(0, 7fr) minmax(0, 19fr) minmax(0, 26fr);
     grid-template-areas: "stage gauge" "stage pnl" "board pnl" "board inbox";
   }
   #labView {
@@ -189,10 +197,7 @@ p { margin: 0; }
 @media (min-width: 1700px) and (min-height: 860px) { html { font-size: 17px; } }
 @media (min-width: 2200px) and (min-height: 1100px) { html { font-size: 19px; } }
 /* 鼠标：棋盘行可以矮一点；悬停有反馈 */
-@media (pointer: fine) {
-  .board { grid-auto-rows: minmax(32px, 1fr); }
-  .cell { min-height: 32px; }
-}
+
 @media (hover: hover) {
   .btn:not(:disabled):hover, .ibtn:not(:disabled):hover, .seg button:not(:disabled):not([aria-pressed="true"]):hover,
   .presets button:hover, .choice button:hover, .stepper button:not(:disabled):hover, .menu button:not(:disabled):hover,
@@ -269,6 +274,12 @@ p { margin: 0; }
   min-width: 50px; min-height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel);
   font-family: var(--font-num); font-weight: 800;
 }
+.beatbar {
+  position: absolute; left: 50px; right: 8px; top: 4px; display: flex; flex-wrap: wrap; gap: 4px 6px; pointer-events: none;
+  font-size: 0.74rem; font-weight: 800;
+}
+.beatbar span { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; opacity: 0.55; }
+.beatbar span.on { opacity: 1; border-color: var(--accent); color: var(--accent); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); }
 .float {
   position: absolute; pointer-events: none; font-family: var(--font-num); font-weight: 800; font-size: 0.82rem;
   animation: floatup 0.9s ease-out forwards;
@@ -277,36 +288,57 @@ p { margin: 0; }
 
 /* ---------- 涨跌效果仪表 ---------- */
 .gbody { gap: 4px; overflow-y: auto; }
-.g-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.g-val { font-size: 1.25rem; font-weight: 800; }
+.g-head { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; min-width: 0; }
+.g-head .hourglass { min-width: 0; overflow: hidden; }
+#gGamma { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#btnZero { white-space: nowrap; }
+.g-val { font-size: 1.15rem; font-weight: 800; white-space: nowrap; }
 .pill { font-size: 0.72rem; font-weight: 800; padding: 2px 8px; border-radius: 999px; border: 1.5px solid currentColor; white-space: nowrap; }
 .pill.ok { color: var(--accent); }
 .pill.off { color: var(--warn); }
-.gauge { position: relative; height: 66px; margin: 0 34px; flex: none; }
-.g-track { position: absolute; left: 0; right: 0; top: 24px; height: 18px; border-radius: 9px; background: var(--panel-2); border: 1px solid var(--line); }
+.gauge { position: relative; height: 86px; margin: 0 34px; flex: none; }
+.g-track { position: absolute; left: 0; right: 0; top: 34px; height: 18px; border-radius: 9px; background: var(--panel-2); border: 1px solid var(--line); }
 .g-track::before, .g-track::after { content: ""; position: absolute; top: 0; bottom: 0; width: 50%; opacity: 0.16; }
 .g-track::before { left: 0; background: var(--neg); border-radius: 9px 0 0 9px; }
 .g-track::after { right: 0; background: var(--pos); border-radius: 0 9px 9px 0; }
 .g-zero { position: absolute; left: 50%; top: -5px; bottom: -5px; width: 2px; margin-left: -1px; background: var(--ink); opacity: 0.55; }
 .g-tick { position: absolute; top: 3px; bottom: 3px; width: 1px; background: var(--muted); opacity: 0.45; }
 .g-needle {
-  position: absolute; top: 15px; height: 36px; width: 6px; margin-left: -3px; border-radius: 3px;
+  position: absolute; top: 26px; height: 34px; width: 6px; margin-left: -3px; border-radius: 3px;
   background: var(--ink); box-shadow: 0 0 0 2px var(--panel); transition: left 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); z-index: 2;
 }
 .g-ghost {
-  position: absolute; top: 19px; height: 28px; width: 4px; margin-left: -2px; border-radius: 2px;
-  background: var(--ink); opacity: 0.38; transition: left 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  position: absolute; top: 30px; height: 26px; width: 5px; margin-left: -2.5px; border-radius: 2px;
+  opacity: 0.75; transition: left 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); z-index: 1;
 }
+.g-ghost.up { background: var(--pos); }
+.g-ghost.dn { background: var(--neg); }
+/* 从主指针指向幽灵指针的箭头：上面一条是“股价涨”，下面一条是“股价跌” */
+.g-arrow { position: absolute; height: 0; border-top: 2px solid currentColor; transition: left 0.28s, width 0.28s; pointer-events: none; }
+.g-arrow.up { top: 22px; color: var(--pos); }
+.g-arrow.dn { top: 64px; color: var(--neg); }
+.g-arrow i { position: absolute; top: -6px; width: 0; height: 0; border: 5px solid transparent; }
+.g-arrow.tor i { right: -6px; border-left: 7px solid currentColor; border-right: 0; }
+.g-arrow.tol i { left: -6px; border-right: 7px solid currentColor; border-left: 0; }
+.g-alab { position: absolute; white-space: nowrap; font-size: 0.68rem; font-weight: 800; transform: translateX(-50%); transition: left 0.28s; pointer-events: none; }
+.g-alab.up { top: 3px; color: var(--pos); }
+.g-alab.dn { top: 68px; color: var(--neg); }
+.g-trail {
+  position: absolute; top: 28px; height: 30px; border-radius: 4px; pointer-events: none; z-index: 1;
+  background: linear-gradient(90deg, transparent, var(--ink)); opacity: 0; animation: trail 1.1s ease-out forwards;
+}
+.g-trail.rev { background: linear-gradient(270deg, transparent, var(--ink)); }
+@keyframes trail { 0% { opacity: 0.35; } 100% { opacity: 0; } }
+.g-zoom { color: var(--warn); font-weight: 800; }
+#gCheck.flash { color: var(--ink); background: var(--accent-soft); border-radius: 6px; padding: 0 6px; }
 .g-ghost span, .g-prev span {
   position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap;
   font-size: 0.66rem; font-weight: 800; color: var(--ink);
 }
-.g-ghost.up span { top: -18px; }
-.g-ghost.dn span { top: 30px; }
-.g-ghost.l span, .g-prev.l span { transform: none; left: -2px; }
-.g-ghost.r span, .g-prev.r span { transform: translateX(-100%); left: 6px; }
-.g-prev { position: absolute; top: 12px; height: 42px; width: 4px; margin-left: -2px; border-radius: 2px; background: var(--accent); opacity: 0.85; z-index: 1; }
-.g-prev span { top: -16px; color: var(--accent); }
+.g-prev.l span { transform: none; left: -2px; }
+.g-prev.r span { transform: translateX(-100%); left: 6px; }
+.g-prev { position: absolute; top: 24px; height: 38px; width: 4px; margin-left: -2px; border-radius: 2px; background: var(--accent); opacity: 0.85; z-index: 1; }
+.g-prev span { top: -14px; color: var(--accent); background: var(--panel); padding: 0 3px; border-radius: 4px; }
 .g-bubble {
   position: absolute; top: 0; transform: translateX(-50%); z-index: 3; pointer-events: none;
   background: var(--ink); color: var(--panel); font-size: 0.72rem; font-weight: 800; padding: 3px 8px; border-radius: 8px; white-space: nowrap;
@@ -316,9 +348,10 @@ p { margin: 0; }
 .g-bubble.good { background: var(--pos); color: #fff; }
 @keyframes bub { 0% { opacity: 0; } 10% { opacity: 1; } 75% { opacity: 1; } 100% { opacity: 0; } }
 .g-scale { display: flex; justify-content: space-between; font-size: 0.66rem; color: var(--muted); font-family: var(--font-num); padding: 0 4px; }
-.g-line { font-size: 0.8rem; }
-.g-actions { display: flex; gap: 8px; align-items: center; }
-#btnZero { flex: 1; min-height: 46px; font-size: 0.95rem; }
+.g-line { font-size: 0.78rem; line-height: 1.35; }
+.g-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#btnZero { flex: 1 1 150px; min-height: 44px; font-size: 0.92rem; }
+.g-actions .qbar { flex: 1.4 1 190px; }
 .hourglass { display: inline-flex; align-items: center; gap: 4px; font-size: 0.76rem; font-weight: 800; white-space: nowrap; }
 .hourglass svg { width: 18px; height: 18px; }
 .qbar {
@@ -336,20 +369,26 @@ p { margin: 0; }
 .q-confirm span { flex: 1; }
 .g-actions { position: relative; }
 .coach {
-  position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); z-index: 4; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 4; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
   background: var(--ink); color: var(--panel); border-radius: 10px; padding: 8px 44px 8px 10px; font-size: 0.8rem; font-weight: 700;
 }
-.coach::after { content: ""; position: absolute; left: 40px; bottom: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: var(--ink); }
+.coach::after { content: ""; position: absolute; left: 40px; top: -6px; border: 6px solid transparent; border-top: 0; border-bottom-color: var(--ink); }
+#btnZero.pulse { animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--accent-soft); } 50% { box-shadow: 0 0 0 6px var(--accent-soft); } }
 .coach button { position: absolute; right: 0; top: 0; width: 44px; height: 100%; border: 0; background: none; color: var(--panel); font-size: 1rem; }
 .gex-note { font-size: 0.8rem; background: var(--accent-soft); border-radius: 10px; padding: 6px 10px; }
 
 /* ---------- 期权棋盘 ---------- */
 .board {
-  flex: 1; min-height: 0; display: grid; position: relative; overflow-y: auto;
-  grid-template-columns: 54px minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows: auto; grid-auto-rows: minmax(42px, 1fr); gap: 4px;
+  flex: 1; min-height: 0; display: grid; position: relative; overflow: hidden;
+  grid-template-columns: 58px minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto; grid-auto-rows: minmax(0, 1fr); gap: 6px 4px;
 }
-.bh { font-size: 0.72rem; color: var(--muted); font-weight: 800; text-align: center; padding-bottom: 2px; position: sticky; top: 0; z-index: 3; background: var(--panel); }
+.bh { font-size: 0.72rem; color: var(--muted); font-weight: 800; text-align: center; }
+.bmore {
+  grid-column: 1 / -1; min-height: 0; border: 1px dashed var(--line); border-radius: 8px; background: var(--panel-2);
+  font-size: 0.72rem; font-weight: 800; color: var(--muted); padding: 0;
+}
 .bk {
   display: grid; place-items: center; font-family: var(--font-num); font-weight: 800; font-size: 0.88rem;
   border-radius: 8px; background: var(--panel-2); line-height: 1.1; text-align: center;
@@ -357,7 +396,7 @@ p { margin: 0; }
 .bk small { display: block; font-size: 0.6rem; font-weight: 700; }
 .cell {
   position: relative; border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
-  display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 2px 8px; min-height: 42px; overflow: hidden; text-align: left;
+  display: flex; align-items: center; justify-content: space-between; gap: 4px; padding: 0 8px; min-height: 0; overflow: hidden; text-align: left;
 }
 .cell::before { content: ""; position: absolute; inset: 0; background: var(--accent); opacity: var(--a, 0); pointer-events: none; transition: opacity 0.3s; }
 .cell > * { position: relative; }
@@ -369,12 +408,16 @@ p { margin: 0; }
 }
 .chip.buy { background: var(--pos); }
 .chip.sell { background: var(--neg); }
+.chip.glong { background: var(--accent); color: var(--accent-ink); }
+.chip.gshort { background: var(--warn); color: var(--warn-ink); }
+.board.tight .chip { padding: 1px 7px; font-size: 0.72rem; }
+.board.tight .theo, .board.tight .bk { font-size: 0.72rem; }
 .cell .lk { width: 16px; height: 16px; color: var(--muted); flex: none; }
 .cell.locked { background: var(--panel-2); }
-.board-line { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--ink); pointer-events: none; z-index: 2; transition: top 0.25s; }
+.board-line { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--ink); pointer-events: none; z-index: 2; transition: top 0.25s; margin-top: -1px; }
 .board-line span {
-  position: absolute; right: 0; top: -9px; background: var(--ink); color: var(--panel);
-  font-family: var(--font-num); font-size: 0.66rem; font-weight: 800; padding: 0 5px; border-radius: 6px;
+  position: absolute; left: 0; width: 58px; text-align: center; top: -9px; background: var(--ink); color: var(--panel);
+  font-family: var(--font-num); font-size: 0.66rem; font-weight: 800; padding: 1px 0; border-radius: 6px;
 }
 .strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.8rem; border-top: 1px solid var(--line); padding-top: 6px; flex: none; }
 .strip > span { flex: 1; min-width: 0; }
@@ -382,7 +425,7 @@ p { margin: 0; }
 /* ---------- 盈亏瀑布条 ---------- */
 .wf { flex: 1; min-height: 0; display: flex; gap: 3px; }
 .wf-col { flex: 1; min-width: 0; display: flex; flex-direction: column; border: 0; background: none; padding: 0; border-radius: 6px; }
-.wf-plot { flex: 1; position: relative; min-height: 28px; }
+.wf-plot { flex: 1; position: relative; min-height: 28px; overflow: hidden; }
 .wf-plot::before { content: ""; position: absolute; left: -2px; right: -2px; bottom: var(--z, 50%); border-top: 1px dashed var(--muted); opacity: 0.55; }
 .wf-bar { position: absolute; left: 14%; right: 14%; border-radius: 3px; min-height: 2px; transition: bottom 0.3s, height 0.3s; }
 .wf-bar.pos { background: var(--pos); }
@@ -392,6 +435,18 @@ p { margin: 0; }
 .wf-lab { font-size: 0.66rem; color: var(--muted); text-align: center; line-height: 1.15; padding-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.2em; }
 .wf-lab b { display: block; color: var(--neg); font-size: 0.58rem; }
 .wf-title { font-size: 0.72rem; font-weight: 800; color: var(--muted); }
+.tug { display: grid; gap: 3px; border: 0; background: none; padding: 0; text-align: left; flex: none; }
+.tug-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.74rem; }
+.tug-row b { font-family: var(--font-num); margin-left: 4px; }
+.tug-bar { position: relative; height: 12px; border-radius: 6px; background: var(--panel-2); overflow: hidden; display: block; }
+.tug-bar i { position: absolute; top: 0; bottom: 0; transition: width 0.3s; }
+.tug-g { right: 50%; border-radius: 6px 0 0 6px; }
+.tug-t { left: 50%; border-radius: 0 6px 6px 0; }
+.tug-bar i.pos { background: var(--pos); }
+.tug-bar i.neg { background: var(--neg); }
+.tug-bar em { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--ink); }
+.tug-v { font-size: 0.74rem; font-weight: 700; color: var(--muted); text-align: center; }
+#btnHideDelta[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .wf-pair { flex: 1; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto minmax(0, 1fr); gap: 2px; }
 .wf-pair .wf { min-height: 0; }
 
@@ -475,8 +530,9 @@ p { margin: 0; }
 /* ---------- 实验室 ---------- */
 .lab-wrap { position: relative; flex: 1; min-height: 0; touch-action: none; }
 .lab-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 0.7rem; color: var(--muted); }
+.legend { display: flex; gap: 4px 10px; flex-wrap: wrap; font-size: 0.7rem; color: var(--muted); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.legend i.hatch { background: repeating-linear-gradient(135deg, var(--ink) 0 2px, transparent 2px 5px); border: 1px solid var(--ink); }
 .legend i.ln { height: 0; width: 16px; border-top: 2px solid var(--ink); border-radius: 0; vertical-align: 3px; }
 .legend i.ln.dash { border-top-style: dashed; border-color: var(--warn); }
 .field { display: grid; gap: 4px; font-size: 0.82rem; }
@@ -535,9 +591,9 @@ td.txt { font-family: var(--font-ui); }
       <button class="ibtn primary" id="btnPlay" aria-label="开始"></button>
       <button class="ibtn" id="btnStep" aria-label="单步：时间走 1 分钟"></button>
       <div class="seg small" id="segSpeed" role="group" aria-label="速度">
-        <button data-v="1">1x</button><button data-v="2">2x</button><button data-v="5">5x</button>
+        <button data-v="slow">慢动作</button><button data-v="1">1x</button><button data-v="2">2x</button><button data-v="5">5x</button>
       </div>
-      <button class="ibtn txt" id="btnSpeed" aria-label="速度：点一下切换 1x / 2x / 5x">1x</button>
+      <button class="ibtn txt" id="btnSpeed" aria-label="速度：点一下切换 慢动作 / 1x / 2x / 5x">1x</button>
       <div class="seg small only-wide" id="segMode" role="group" aria-label="股价模式">
         <button data-v="auto">自动</button><button data-v="manual">手动</button>
       </div>
@@ -555,6 +611,7 @@ td.txt { font-family: var(--font-ui); }
           <div class="stage-wrap" id="stageWrap">
             <canvas id="stage" aria-label="股价走势"></canvas>
             <div class="stage-ctrl" id="stageCtrl"></div>
+            <div class="beatbar" id="beatBar" hidden></div>
           </div>
         </div>
       </section>
@@ -566,30 +623,33 @@ td.txt { font-family: var(--font-ui); }
           <button class="help" data-help="gauge" aria-label="说明"><span>?</span></button>
         </header>
         <div class="body gbody">
-          <div class="g-head"><b class="g-val" id="gVal"></b><span class="pill" id="gChip"></span></div>
+          <div class="g-head"><b class="g-val" id="gVal"></b><span class="pill" id="gChip"></span><span class="grow"></span><span class="hourglass" id="gTheta"></span></div>
           <div class="gauge" id="gauge">
+            <span class="g-alab up" id="gLabUp"></span>
+            <div class="g-arrow up" id="gArUp"><i></i></div>
             <div class="g-track"><i class="g-tick" style="left:25%"></i><i class="g-tick" style="left:75%"></i><i class="g-zero"></i></div>
-            <div class="g-ghost up" id="gUp"><span>股价 +1 后</span></div>
-            <div class="g-ghost dn" id="gDn"><span>股价 −1 后</span></div>
+            <div class="g-ghost up" id="gUp"></div>
+            <div class="g-ghost dn" id="gDn"></div>
+            <div class="g-arrow dn" id="gArDn"><i></i></div>
+            <span class="g-alab dn" id="gLabDn"></span>
             <div class="g-prev" id="gPrev" hidden><span id="gPrevLab"></span></div>
             <div class="g-needle" id="gNeedle"></div>
           </div>
-          <div class="g-scale"><span id="gMinL"></span><span>← 做空 · 0 · 做多 →</span><span id="gMaxL"></span></div>
+          <div class="g-scale"><span id="gMinL"></span><span id="gMid">← 做空 · 0 · 做多 →</span><span id="gMaxL"></span></div>
           <p class="g-line" id="gGamma"></p>
           <p class="g-line muted" id="gCheck"></p>
           <div class="g-actions" id="gActions">
-            <div class="coach" id="coach" hidden>接单后按“调回 0”，把指针拉回中间。这就是 Delta 对冲。<button id="coachX" aria-label="知道了">×</button></div>
             <button class="btn primary" id="btnZero">调回 0</button>
-            <span class="hourglass" id="gTheta"></span>
+            <div class="qbar" id="qbar"><div class="q-track"><span>← 卖</span><span>拖动买卖股票</span><span>买 →</span></div><div class="q-thumb" id="qThumb">拖我</div></div>
+            <div class="coach" id="coach" hidden>接单后按上面的“调回 0”，把指针拉回中间。这就是 Delta 对冲。<button id="coachX" aria-label="知道了">×</button></div>
           </div>
-          <div class="qbar" id="qbar"><div class="q-track"><span>← 拖向左 = 卖股票</span><span>拖向右 = 买股票 →</span></div><div class="q-thumb" id="qThumb">拖我</div></div>
           <div class="q-confirm" id="qConfirm" hidden></div>
           <p class="gex-note" id="gexNote" hidden>这里你在旁观全体做市商：系统每一步都替他们自动把指针调回 0。两根幽灵指针离得越远，他们每次被迫买卖的股数越多。</p>
         </div>
       </section>
 
       <section class="card tabbed" data-tab="pnl" id="cPnl">
-        <header><h2 id="pnlTitle">盈亏条</h2><b class="num grow" id="pnlTotal" style="text-align:right"></b><button class="btn small" id="btnCompare" hidden>对比</button><button class="help" data-help="pnl" aria-label="说明"><span>?</span></button></header>
+        <header><h2 id="pnlTitle">盈亏条</h2><b class="num grow" id="pnlTotal" style="text-align:right"></b><button class="btn small" id="btnHideDelta" hidden aria-pressed="false" title="没对冲时“方向”这一段很大，会把其他几段压扁">隐藏方向</button><button class="btn small" id="btnCompare" hidden>对比</button><button class="help" data-help="pnl" aria-label="说明"><span>?</span></button></header>
         <div class="body" id="pnlBody"></div>
       </section>
 
@@ -611,7 +671,7 @@ td.txt { font-family: var(--font-ui); }
       <section class="card" id="cLabChart">
         <header><h2 id="labTitle">GEX 实验室</h2><span class="note grow" id="labNote"></span><button class="help" data-help="labchart" aria-label="说明"><span>?</span></button></header>
         <div class="body" style="padding-bottom:8px">
-          <div class="legend"><span><i style="background:var(--call)"></i>Call</span><span><i style="background:var(--put)"></i>Put</span><span class="lg-long">柱子向上 = 做市商做多 Gamma，向下 = 做空 Gamma</span><span><i class="ln"></i>总 GEX<span class="lg-long"> 随股价变化（右轴）</span></span><span id="legHidden" hidden><i class="ln dash"></i>真实（含看不到的仓位）</span></div>
+          <div class="legend"><span><i style="background:var(--ink)"></i>实心 = Call</span><span><i class="hatch"></i>斜纹 = Put</span><span><i style="background:var(--accent)"></i>蓝 = <span class="g-long">做市商</span>做多 Gamma<span class="g-long">（偏平静）</span></span><span><i style="background:var(--warn)"></i>橙 = 做空 Gamma<span class="g-long">（偏剧烈）</span></span><span id="legHidden" hidden><i class="ln dash"></i>真实（含看不到的仓位）</span></div>
           <div class="lab-wrap" id="labWrap"><canvas id="labCanvas" aria-label="GEX 分布图"></canvas></div>
         </div>
       </section>
@@ -910,7 +970,8 @@ const LEVELS = {
         '前几关你是一个做市商。现在换个角度：把市场上所有做市商加在一起看。',
         '每个行权价上都有很多还没平仓的期权合约，叫未平仓张数。做市商站在这些合约的另一边，所以他们手里有 Gamma。',
         '把一个行权价上全体做市商的 Gamma 换算成股数，就是这个行权价的 GEX：全体做市商在这个行权价上，股价每动 1 块要被迫买卖多少股。',
-        '图里横轴是股价。每个行权价有两根柱子：Call 一根、Put 一根。柱子向上，表示做市商在这里做多 Gamma，股价涨了他们卖、跌了他们买，会让波动变小；向下表示做空 Gamma，他们顺着涨跌买卖，会让波动变大。',
+        '上面那张图横轴是股价。每个行权价有两根柱子：实心是 Call、斜纹是 Put。蓝色朝上，表示做市商在这里做多 Gamma，股价涨了他们卖、跌了他们买，会让波动变小；橙色朝下表示做空 Gamma，他们顺着涨跌买卖，会让波动变大。',
+        '下面那张图是另一件事：假如股价走到横轴上的某个位置，所有格子加起来的总 GEX 是多少。',
         '这一关用默认的站位假设：机构卖 Call 收租、买 Put 当保险，所以做市商买入 Call、卖出 Put。'
       ],
       goal: [
@@ -1206,15 +1267,8 @@ const Core = {
   step(g) {
     if (g.ended) return null;
     const L = LEVELS[g.level];
-    let dS = 0;
-    if (g.mode === 'auto') {
-      const v = g.set.iv, dt = 1 / P.MIN_PER_YEAR;
-      dS = g.S * (Math.exp(v * Math.sqrt(dt) * rnd.gauss() - 0.5 * v * v * dt) - 1);
-      const pull = g.set.pull[g.level];
-      if (pull) dS += pull * (PIN - g.S);
-      if (L.drift) dS += typeof L.drift === 'function' ? L.drift(g) : L.drift;   // 第 8、9 关：缓慢漂移
-    }
-    const k = L.impact ? (L.gex ? g.set.gexImpact : g.set.impact) / 1000 : 0;
+    const dS = Core.shock(g);
+    const k = Core.impactK(g);
     const target = g.S + dS + k * g.pendingFlow;       // 随机冲击 + 上一步之后做市商已经成交的净买入
     // 开着自动对冲时，本步的对冲买卖和它推动的股价同时发生：解出两者一致的价格
     const newS = k > 0 && g.autoHedge ? Core.solveImpact(g, target, k) : target;
@@ -1234,6 +1288,25 @@ const Core = {
       Core.autoHedge(g, '自动对冲 Delta', true);
       if (k > 0) g.pendingFlow = 0;                     // 这笔对冲的冲击已经算进本步股价
     }
+    return Core.stepAfter(g);
+  },
+  // 本步的随机冲击（自动模式才有），加上回拉和漂移
+  shock(g) {
+    const L = LEVELS[g.level];
+    let dS = 0;
+    if (g.mode === 'auto') {
+      const v = g.set.iv, dt = 1 / P.MIN_PER_YEAR;
+      dS = g.S * (Math.exp(v * Math.sqrt(dt) * rnd.gauss() - 0.5 * v * v * dt) - 1);
+      const pull = g.set.pull[g.level];
+      if (pull) dS += pull * (PIN - g.S);
+      if (L.drift) dS += typeof L.drift === 'function' ? L.drift(g) : L.drift;   // 第 8、9 关：缓慢漂移
+    }
+    return dS;
+  },
+  impactK(g) { const L = LEVELS[g.level]; return L.impact ? (L.gex ? g.set.gexImpact : g.set.impact) / 1000 : 0; },
+  // 一步走完后的记账：关卡钩子、Gamma 历史、客户订单
+  stepAfter(g) {
+    const L = LEVELS[g.level];
     if (L.afterStep) L.afterStep(g);
     g.gHist.push({ m: g.minutes, g: Core.greeks(g).gamma });
     Core.track(g);
@@ -1868,9 +1941,13 @@ function play() {
   if (G.ended || kindOf() === 'quiz' || UI.view !== 'level') return;
   UI.running = true; schedule(); renderTop();
 }
-function stop() { UI.running = false; clearTimeout(UI.timer); }
+function stop() {
+  UI.running = false; clearTimeout(UI.timer);
+  if (UI.slow) { const sl = UI.slow; UI.slow = null; sl.finish(); }   // 慢动作走到一半被暂停：把这一步做完，不留半步
+}
 function schedule() {
   clearTimeout(UI.timer);
+  if (UI.speed === 'slow') { UI.timer = setTimeout(() => { if (UI.running) slowStep(true); }, 200); return; }
   UI.timer = setTimeout(() => {
     if (!UI.running) return;
     const ev = Core.step(G);
@@ -1880,8 +1957,54 @@ function schedule() {
     if (UI.running) schedule();
   }, 1000 / UI.speed);
 }
+// 慢动作：一步拆成三拍——① 股价动 ② 指针自己跑（这就是 Gamma）③ 被迫对冲（第 5、7–9 关还会看到对冲把股价推了多少）
+// 第 ③ 拍总会自动把指针调回 0，用来演示“股价动 → 涨跌效果变 → 被迫买卖”这条链
+function slowStep(cont) {
+  if (UI.slow || G.ended || kindOf() === 'quiz') return;
+  const g = G, k = Core.impactK(g), dS = Core.shock(g);
+  const target = Math.max(1, g.S + dS + k * g.pendingFlow);
+  const eqS = k > 0 ? Core.solveImpact(g, target, k) : target;
+  const oldS = g.S, before = Core.greeks(g).delta;
+  g.pendingFlow = 0;
+  Core.move(g, target, g.minutes - 1);
+  g.lastCheck = null; g.step++;
+  const dist = Math.abs(g.S - PIN); g.sumDist += dist; g.maxDist = Math.max(g.maxDist, dist);
+  const after = Core.greeks(g).delta;
+  const d1 = g.S - oldS;
+  UI.beatText = [`① 股价${d1 >= 0 ? '涨' : '跌'}了 ${fmt.px(Math.abs(d1))}`];
+  if (g.minutes <= 0) { Core.settle(g); UI.beat = 0; endLevel('expiry'); return; }
+  let stage = 1;
+  const finish = () => {
+    if (stage >= 3) return null;
+    stage = 3;
+    if (k > 0) { Core.move(g, Math.max(1, eqS), g.minutes); g.lastImpact = g.S - target; }
+    const q = Core.autoHedge(g, g.autoHedge ? '自动对冲 Delta' : '慢动作：自动调回 0', true);
+    if (k > 0) g.pendingFlow = 0;
+    g.dsHist.push(g.S - oldS); if (g.dsHist.length > 400) g.dsHist.shift();
+    const ev = Core.stepAfter(g);
+    if (stage < 4 && UI.beatText.length < 2) UI.beatText.push(`② 指针自己跑了 ${fmt.sbig(after - before)} 股（这就是 Gamma）`);
+    UI.beatText.push(`③ 被迫对冲：${tradeText(q)}` + (k > 0 ? `，把股价推动了 ${g.lastImpact >= 0 ? '+' : '−'}${fmt.px(Math.abs(g.lastImpact))}` : ''));
+    UI.beat = 3; UI.slow = null;
+    return ev;
+  };
+  UI.slow = { finish };
+  UI.beat = 1; render();
+  UI.timer = setTimeout(() => {
+    if (!UI.slow) return;
+    stage = 2; UI.beat = 2;
+    UI.beatText.push(`② 指针自己跑了 ${fmt.sbig(after - before)} 股（这就是 Gamma）`);
+    render();
+    UI.timer = setTimeout(() => {
+      if (!UI.slow) return;
+      const ev = finish(); render();
+      if (ev === 'order' && SET.pauseOnOrder) { UI.running = false; if (isPhone()) UI.tab = 'inbox'; render(); return; }
+      if (cont && UI.running) UI.timer = setTimeout(() => { if (UI.running) slowStep(true); }, 700);
+    }, 700);
+  }, 700);
+}
 function doStep() {
   if (G.ended || kindOf() === 'quiz') return;
+  if (UI.speed === 'slow') { slowStep(false); return; }
   const ev = Core.step(G);
   if (G.ended) { endLevel('expiry'); return; }
   if (ev === 'order' && isPhone()) UI.tab = 'inbox';
@@ -1932,7 +2055,7 @@ function renderTop() {
   pb.disabled = !canRun;
   $('btnStep').disabled = !canRun || UI.running;
   setPressed('segSpeed', String(UI.speed));
-  $('btnSpeed').textContent = UI.speed + 'x';
+  $('btnSpeed').textContent = UI.speed === 'slow' ? '慢' : UI.speed + 'x';
   setPressed('segMode', G.mode);
   $('btnMode').textContent = G.mode === 'auto' ? '自动' : '手动';
   [...$('segMode').querySelectorAll('button'), $('btnMode')].forEach(b => b.disabled = inLab || quiz);
@@ -2022,7 +2145,7 @@ function renderStage() {
   const L = LEVELS[G.level], manual = G.mode === 'manual';
   $('stageTitle').textContent = L.kind === 'gex' ? '价格舞台 · GEX' : '价格舞台';
   $('stageNote').textContent = manual ? '按住右端的圆点上下拖，股价跟着变' : (L.impact ? '小箭头 = 这一步对冲推动了多少' : '股价自己随机走');
-  if (L.kind === 'gex' && isPhone()) { const v = gexView(G); $('stageNote').textContent = flipStateText(v.realTotal >= 0, v.flip, G.S, true); }
+  if (L.kind === 'gex' && window.innerWidth < 1000) { const v = gexView(G); $('stageNote').textContent = flipStateText(v.realTotal >= 0, v.flip, G.S, true); }
   const ctrl = $('stageCtrl'), want = manual ? 'manual' : 'auto';
   if (ctrl.dataset.mode !== want) {
     ctrl.dataset.mode = want;
@@ -2032,6 +2155,11 @@ function renderStage() {
   }
   ctrl.querySelectorAll('button').forEach(b => b.disabled = G.ended);
   drawStage();
+  const bb = $('beatBar');
+  if (UI.speed === 'slow' && UI.beatText && UI.beatText.length) {
+    bb.hidden = false;
+    bb.innerHTML = UI.beatText.map((t, i) => `<span class="${i === UI.beatText.length - 1 ? 'on' : ''}">${t}</span>`).join('');
+  } else bb.hidden = true;
   if (UI.lastS != null && Math.abs(G.S - UI.lastS) >= 0.005 && !UI.stageDrag && UI.stageGeom) spawnFloat(G.S - UI.lastS);
   UI.lastS = G.S;
 }
@@ -2040,10 +2168,11 @@ function drawStage() {
   const { ctx, w, h } = r, tk = tokens(), L = LEVELS[G.level];
   const gexOn = L.kind === 'gex', gv = gexOn ? gexView(G) : null;
   const [lo, hi, pts] = stageRange();
-  const pad = { l: 42, r: gexOn ? Math.min(150, Math.max(90, w * 0.24)) : 78, t: 12, b: 20 };
+  const pad = { l: 42, r: gexOn ? Math.round(w * 0.18) + 24 : 78, t: 12, b: 20 };
   const plotR = w - pad.r;
   const X = i => pad.l + (pts.length < 2 ? 1 : i / (pts.length - 1)) * (plotR - pad.l - 18);
   const Y = s => pad.t + (hi - s) / (hi - lo) * (h - pad.t - pad.b);
+  if (gexOn) drawGexTint(ctx, tk, gv, Y, lo, hi, w, h, pad);
   ctx.font = '' + fpx(11) + 'px ' + tk.font;
   ctx.textBaseline = 'middle';
   const strikes = gexOn ? gv.rows.map(x => x.K) : STRIKES;
@@ -2090,20 +2219,35 @@ function drawStage() {
   ctx.fillText(G.minutes > 0 ? `剩 ${G.minutes} 分` : '到期', plotR - 18, h - 4);
   UI.stageGeom = { lx, ly, lo, hi, pad, w, h };
 }
+// 舞台背景按总 GEX 的正负着色：Gamma Flip 上下两边一蓝一橙，股价所在那一边更明显
+function drawGexTint(ctx, tk, gv, Y, lo, hi, w, h, pad) {
+  const ctxG = { stance: G.market.stance, iv: SET.iv, minutes: G.minutes };
+  const band = (y0, y1, positive, cur) => {
+    ctx.fillStyle = positive ? tk.accent : tk.warn; ctx.globalAlpha = cur ? 0.1 : 0.045;
+    ctx.fillRect(pad.l, Math.max(pad.t, y0), w - pad.l - 4, Math.min(h - pad.b, y1) - Math.max(pad.t, y0));
+    ctx.globalAlpha = 1;
+  };
+  if (gv.flip != null && gv.flip > lo && gv.flip < hi) {
+    const yF = Y(gv.flip);
+    const upPos = GEX.total(G.market.cells, gv.flip + 0.4, ctxG) >= 0;
+    band(pad.t, yF, upPos, G.S >= gv.flip);
+    band(yF, h - pad.b, !upPos, G.S < gv.flip);
+  } else band(pad.t, h - pad.b, gv.total >= 0, true);
+}
 function drawGexOverlay(ctx, tk, gv, Y, lo, hi, w, pad) {
   const rows = gv.rows.filter(r => r.K >= lo && r.K <= hi);
   const maxAbs = Math.max(1, ...gv.rows.map(r => Math.abs(r.net)));
-  const room = pad.r - 46;
+  const room = w * 0.18;
   for (const r of rows) {
-    const len = Math.abs(r.net) / maxAbs * room, y = Y(r.K);
+    const len = Math.max(2, Math.abs(r.net) / maxAbs * room), y = Y(r.K);
     ctx.fillStyle = r.net >= 0 ? tk.accent : tk.warn;
-    ctx.globalAlpha = 0.85;
-    ctx.fillRect(w - 6 - len, y - 4, len, 8);
+    ctx.globalAlpha = 0.9;
+    ctx.fillRect(w - 6 - len, y - 5, len, 10);
     ctx.globalAlpha = 1;
     const tag = r.K === gv.callWall ? 'Call Wall' : r.K === gv.putWall ? 'Put Wall' : '';
     if (tag) {
-      ctx.fillStyle = tk.ink; ctx.font = '800 ' + fpx(10) + 'px ' + tk.font; ctx.textAlign = 'right';
-      ctx.fillText(tag, w - 8 - len - 4, y - 9 < 6 ? y + 12 : y - 9);
+      ctx.fillStyle = r.net >= 0 ? tk.accent : tk.warn; ctx.font = '800 ' + fpx(10) + 'px ' + tk.font; ctx.textAlign = 'right';
+      ctx.fillText(`${tag} ${fmt.sbig(r.net)} 股/元`, w - 6, y - 11 < 6 ? y + 14 : y - 11);
     }
   }
   if (gv.flip != null && gv.flip > lo && gv.flip < hi) {
@@ -2163,6 +2307,7 @@ function niceUp(x) {
   return 10 * p;
 }
 function renderGauge() {
+  if (UI.slow && UI.beat === 1) return;                // 慢动作第 ① 拍：仪表先不动，第 ② 拍再让指针跑
   const L = LEVELS[G.level], gex = L.kind === 'gex';
   const gk = Core.greeks(G), up = Core.preview(G, 1), dn = Core.preview(G, -1);
   const pend = UI.qDrag ? UI.qDrag.qty : UI.qPending;
@@ -2180,8 +2325,46 @@ function renderGauge() {
     el.classList.toggle('l', p < 14); el.classList.toggle('r', p > 86);
   };
   place($('gNeedle'), gk.delta);
-  place($('gUp'), up.delta);
-  place($('gDn'), dn.delta);
+  // Gamma 太小、幽灵指针贴着主指针时，换成股价 ±n 元来显示（n 取能拉开距离的最小整数）
+  const gm = gk.gamma, th0 = 0.12 * R;                 // 刻度全宽 = 2R，6% = 0.12R
+  let n = 1, gu = up, gd = dn;
+  if (Math.abs(gm) >= 1 && Math.min(Math.abs(up.delta - gk.delta), Math.abs(dn.delta - gk.delta)) < th0) {
+    for (const c of [2, 3, 4, 5, 6, 8, 10]) {
+      n = c; gu = Core.preview(G, c); gd = Core.preview(G, -c);
+      if (Math.min(Math.abs(gu.delta - gk.delta), Math.abs(gd.delta - gk.delta)) >= th0) break;
+    }
+  }
+  UI.gN = n;
+  place($('gUp'), gu.delta);
+  place($('gDn'), gd.delta);
+  const arrow = (el, lab, to, d) => {
+    const a = pct(gk.delta), b = pct(to), move = to - gk.delta, flat = Math.abs(gm) < 1;
+    el.style.left = Math.min(a, b) + '%';
+    el.style.width = Math.abs(b - a) + '%';
+    el.classList.toggle('tor', b >= a); el.classList.toggle('tol', b < a);
+    el.hidden = flat;
+    lab.textContent = flat ? `股价 ${d > 0 ? '+' : '−'}1 → 指针几乎不动` : `股价 ${d > 0 ? '+' : '−'}${n} → 指针往${move < 0 ? '左' : '右'}跑 ${fmt.big(move)} 股`;
+    lab.style.left = Math.max(25, Math.min(75, (a + b) / 2)) + '%';
+  };
+  arrow($('gArUp'), $('gLabUp'), gu.delta, 1);
+  arrow($('gArDn'), $('gLabDn'), gd.delta, -1);
+  $('gMid').innerHTML = n > 1 ? `<span class="g-zoom">Gamma 较小，放大到 ±${n} 元显示</span>` : '← 做空 · 0 · 做多 →';
+  // 股价一动：主指针留一条淡出的轨迹，说明“指针自己跑了多少”
+  const lm = G.lastMove;
+  if (lm && lm !== UI.lastMoveRef) {
+    UI.lastMoveRef = lm;
+    const ran = lm.deltaAfter - lm.deltaBefore;
+    if (Math.abs(lm.dS) >= 0.005 && Math.abs(ran) >= 1 && !UI.qDrag) {
+      const gauge = $('gauge');
+      gauge.querySelectorAll('.g-trail').forEach(x => x.remove());
+      const t = document.createElement('div'), a = pct(lm.deltaBefore), b = pct(lm.deltaAfter);
+      t.className = 'g-trail' + (b < a ? ' rev' : '');
+      t.style.left = Math.min(a, b) + '%'; t.style.width = Math.max(0.8, Math.abs(b - a)) + '%';
+      gauge.appendChild(t);
+      setTimeout(() => t.remove(), 1200);
+      UI.moveMsg = { text: `股价 ${lm.dS > 0 ? '+' : '−'}${fmt.px(Math.abs(lm.dS))} → 指针自己跑了 ${fmt.sbig(ran)} 股（这就是 Gamma × 股价变动）`, until: Date.now() + 2500 };
+    }
+  }
   const prev = $('gPrev');
   if (pend) { prev.hidden = false; place(prev, gk.delta + pend); $('gPrevLab').textContent = `${tradeText(pend)} 后`; }
   else prev.hidden = true;
@@ -2194,16 +2377,21 @@ function renderGauge() {
   $('gChip').className = 'pill ' + (near ? 'ok' : 'off');
   $('gChip').textContent = near ? '接近 0' : '偏离 0';
 
-  const gm = gk.gamma;
   const who = gex ? '全体做市商' : '你';
   if (Math.abs(gm) < 1) {
     $('gGamma').innerHTML = '股价动了，指针几乎不动：现在 Gamma 接近 0。';
   } else {
     const kind = gm < 0 ? '做空 Gamma' : '做多 Gamma';
-    $('gGamma').innerHTML = `<span class="g-long">股价每动 1 块，指针会自动移动约 <b class="num">${fmt.big(gm)}</b> 股（这就是 Gamma）· <b class="${gm < 0 ? 'neg' : 'pos'}">${kind}</b>：指针总往对${who}${gm < 0 ? '不利' : '有利'}的方向跑</span><span class="g-short">每动 1 块指针移 <b class="num">${fmt.big(gm)}</b> 股 · <b class="${gm < 0 ? 'neg' : 'pos'}">${kind}</b></span>`;
+    $('gGamma').innerHTML = `<span class="g-long" title="${kind}：指针总往对${who}${gm < 0 ? '不利' : '有利'}的方向跑">股价每动 1 块，指针自动移动约 <b class="num">${fmt.big(gm)}</b> 股（这就是 Gamma）· <b class="${gm < 0 ? 'neg' : 'pos'}">${kind}</b></span><span class="g-short">每动 1 块指针移 <b class="num">${fmt.big(gm)}</b> 股 · <b class="${gm < 0 ? 'neg' : 'pos'}">${kind}</b></span>`;
   }
   const c = G.lastCheck;
-  if (c) {
+  const flash = !c && UI.moveMsg && Date.now() < UI.moveMsg.until;
+  $('gCheck').classList.toggle('flash', !!flash);
+  if (flash) {
+    $('gCheck').textContent = UI.moveMsg.text;
+    clearTimeout(UI.moveTimer);
+    UI.moveTimer = setTimeout(() => { if (UI.view === 'level' && G && kindOf() !== 'quiz') renderGauge(); }, UI.moveMsg.until - Date.now() + 30);
+  } else if (c) {
     const ok = Math.abs(c.act.delta - c.pre.delta) < 0.5 && Math.abs(c.act.pnl - c.pre.pnl) < 0.5;
     $('gCheck').innerHTML = `刚才股价 ${c.d > 0 ? '+1' : '−1'}：幽灵指针预测“${deltaText(c.pre.delta)}”、${fmt.money(c.pre.pnl)}；实际“${deltaText(c.act.delta)}”、${fmt.money(c.act.pnl)}。<b>${ok ? '一致 ✓' : '不一致 ✗'}</b>`;
   } else if (gex) {
@@ -2213,14 +2401,14 @@ function renderGauge() {
       (up.pnl < -1 && dn.pnl < -1 ? '：涨也亏、跌也亏，这就是做空 Gamma。' : up.pnl > 1 && dn.pnl > 1 ? '：涨也赚、跌也赚，这就是做多 Gamma。' : '。');
   }
   const z = Math.round(-gk.delta);
-  $('gActions').hidden = gex; $('qbar').hidden = gex; $('gexNote').hidden = !gex;
+  $('gActions').hidden = gex; $('gexNote').hidden = !gex; $('gTheta').hidden = gex;
   if (gex) { $('qConfirm').hidden = true; $('coach').hidden = true; return; }
   const bz = $('btnZero');
   bz.disabled = G.ended || z === 0;
   bz.innerHTML = z === 0 ? '调回 0（已经是 0）' : `调回 0<span class="g-long">：${tradeText(z)}</span><span class="g-short"> · ${z > 0 ? '买' : '卖'} ${fmt.big(z)}</span>`;
   const th = gk.theta;
   $('gTheta').className = 'hourglass ' + fmt.cls(th);
-  $('gTheta').innerHTML = `${ICON.glass}<span><span class="g-long">每分钟时间损耗 </span>${fmt.money(th)}<span class="g-short">/分</span></span>`;
+  $('gTheta').innerHTML = `${ICON.glass}<span>时间损耗 ${fmt.money(th)}/分</span>`;
   $('gTheta').title = th > 0 ? '你卖出的期权每分钟自己变便宜一点，你赚这部分（这就是 Theta）' : th < 0 ? '你买入的期权每分钟自己变便宜一点，你亏这部分（这就是 Theta）' : '';
   $('qbar').style.opacity = G.ended ? 0.5 : 1;
   const qc = $('qConfirm');
@@ -2230,6 +2418,7 @@ function renderGauge() {
   } else qc.hidden = true;
   const showCoach = G.level === 1 && !UI.coachDone && !G.ended && Object.keys(G.pos).length > 0 && !near;
   $('coach').hidden = !showCoach;
+  bz.classList.toggle('pulse', showCoach);
 }
 function showBubble(t) {
   const gauge = $('gauge');
@@ -2259,6 +2448,7 @@ function renderBoard() {
   const L = LEVELS[G.level];
   if (L.kind === 'gex') return renderGexBoard();
   $('boardTitle').textContent = '期权棋盘';
+  $('strip').hidden = false;
   $('boardNote').textContent = L.allowOpt ? '点格子：看详情、向其他做市商买卖' : '本关期权上锁，只能用股票';
   const T = P.years(G.minutes), v = SET.iv;
   const ks = [...STRIKES].sort((a, b) => b - a);
@@ -2270,6 +2460,10 @@ function renderBoard() {
     if (p) maxPos = Math.max(maxPos, Math.abs(g1 * p.qty));
   }
   let html = '<div class="bh">行权价</div><div class="bh">Call（看涨）</div><div class="bh">Put（看跌）</div>';
+  const board = $('board');
+  board.style.gridTemplateRows = `auto repeat(${ks.length}, minmax(0, 1fr))`;
+  board.style.rowGap = '';
+  board.classList.toggle('tight', board.clientHeight > 0 && (board.clientHeight - 24) / ks.length < 40);
   for (const K of ks) {
     html += `<div class="bk" data-k="${K}">${K}</div>`;
     for (const t of ['C', 'P']) {
@@ -2293,29 +2487,45 @@ function positionBoardLine(ks) {
   const board = $('board'), line = $('boardLine');
   const rows = [...board.querySelectorAll('.bk')];
   if (!rows.length || !line) return;
-  const ys = rows.map(r => r.offsetTop + r.offsetHeight / 2);
-  const S = kindOf() === 'gex' ? G.S : G.S;
+  // 横线只画在两行之间的缝隙里，不压住格子里的筹码；价签放在最左边的行权价列
+  const top = r => r.offsetTop, bot = r => r.offsetTop + r.offsetHeight;
+  const S = G.S;
   let y;
-  if (S >= ks[0]) y = ys[0] - Math.min(1, (S - ks[0]) / Math.max(ks[0] - ks[1], 1)) * (ys[1] - ys[0]) * 0.5;
-  else if (S <= ks[ks.length - 1]) y = ys[ys.length - 1] + Math.min(1, (ks[ks.length - 1] - S) / Math.max(ks[ks.length - 2] - ks[ks.length - 1], 1)) * (ys[1] - ys[0]) * 0.5;
+  if (S >= ks[0]) y = top(rows[0]) - 3;
+  else if (S <= ks[ks.length - 1]) y = bot(rows[rows.length - 1]) + 3;
   else {
     let i = 0; while (i < ks.length - 1 && !(S <= ks[i] && S >= ks[i + 1])) i++;
-    y = ys[i] + (ks[i] - S) / (ks[i] - ks[i + 1]) * (ys[i + 1] - ys[i]);
+    y = (bot(rows[i]) + top(rows[i + 1])) / 2;
   }
   line.style.top = y + 'px';
-  line.firstElementChild.textContent = '股价 ' + fmt.px(S);
-  if (board.scrollHeight > board.clientHeight + 2 && Date.now() - (UI.boardTouch || 0) > 4000) board.scrollTop = Math.max(0, y - board.clientHeight / 2);
+  line.firstElementChild.textContent = fmt.px(S);
 }
 function renderGexBoard() {
   $('boardTitle').textContent = 'GEX 棋盘（全体做市商）';
-  $('boardNote').textContent = '格子 = 未平仓张数和做市商站位';
+  $('strip').hidden = true;
+  $('boardNote').textContent = '蓝 = 做市商做多 Gamma，橙 = 做空 Gamma';
   const v = gexView(G), ctx = { stance: G.market.stance, iv: SET.iv, minutes: G.minutes };
-  const cells = G.market.cells;
-  let ks = [...new Set(cells.map(c => c.K))].sort((a, b) => b - a);
-  const near = ks.filter(K => Math.abs(K - G.S) <= 8.5);
-  ks = near.length >= 5 ? near : ks.slice().sort((a, b) => Math.abs(a - G.S) - Math.abs(b - G.S)).slice(0, 7).sort((a, b) => b - a);
+  const cells = G.market.cells, board = $('board');
+  const all = [...new Set(cells.filter(c => c.oi > 0).map(c => c.K))].sort((a, b) => b - a);
+  // 能放下几行就放几行（每行至少 28px）；放不下时围绕当前股价开一个窗口，上下用按钮提示还剩几个
+  const H = (board.clientHeight || 300) - 22;
+  const fit = Math.max(3, Math.floor((H + 4) / 32));                 // 每行至少 28px + 4px 缝
+  let ks = all, above = 0, below = 0;
+  if (all.length > fit) {
+    const rows = Math.max(3, Math.floor((H - 2 * 28 + 4) / 32));     // 上下各留一个“还有几个”按钮
+    const iS = all.findIndex(K => K <= G.S);
+    let start = UI.gexWin != null && Date.now() - (UI.gexWinTouch || 0) < 15000 ? UI.gexWin : (iS < 0 ? all.length : iS) - Math.floor(rows / 2);
+    start = Math.max(0, Math.min(all.length - rows, start));
+    UI.gexWin = start;
+    ks = all.slice(start, start + rows); above = start; below = all.length - start - rows;
+  }
+  board.style.gridTemplateRows = `auto ${above ? '22px ' : ''}repeat(${ks.length}, minmax(0, 1fr))${below ? ' 22px' : ''}`;
+  board.style.rowGap = '4px';
+  board.classList.toggle('tight', ((board.clientHeight || 300) - 22) / Math.max(ks.length, 1) < 40);
   const maxAbs = Math.max(1, ...cells.map(c => Math.abs(GEX.cellGex(c, G.S, ctx))));
+  const narrow = (board.clientWidth || 400) < 560;
   let html = '<div class="bh">行权价</div><div class="bh">Call（看涨）</div><div class="bh">Put（看跌）</div>';
+  if (above) html += `<button class="bmore" data-gwin="-1">↑ 上面还有 ${above} 个行权价</button>`;
   for (const K of ks) {
     const row = v.rows.find(r => r.K === K);
     const tag = K === v.callWall ? 'Call Wall' : K === v.putWall ? 'Put Wall' : '';
@@ -2325,10 +2535,11 @@ function renderGexBoard() {
       if (!c || !c.oi) { html += `<div class="cell" style="--a:0"><span class="theo">—</span></div>`; continue; }
       const gx = GEX.cellGex(c, G.S, ctx), sg = GEX.sign(c, G.market.stance);
       html += `<button class="cell ${gx < 0 ? 'gneg-bg' : ''}" data-gcell="${t}${K}" style="--a:${(0.06 + 0.4 * Math.abs(gx) / maxAbs).toFixed(3)}">
-        <span class="theo">${fmt.big(c.oi)} 张</span><span class="chip ${sg > 0 ? 'buy' : 'sell'}">做市商${sg > 0 ? '买' : '卖'}</span></button>`;
+        <span class="theo">${fmt.big(c.oi)}${narrow ? '' : ' 张'}</span><span class="chip ${sg > 0 ? 'glong' : 'gshort'}">${narrow ? (sg > 0 ? '买·多Γ' : '卖·空Γ') : (sg > 0 ? '买 · 做多Γ' : '卖 · 做空Γ')}</span></button>`;
     }
     void row;
   }
+  if (below) html += `<button class="bmore" data-gwin="1">↓ 下面还有 ${below} 个行权价</button>`;
   html += '<div class="board-line" id="boardLine"><span></span></div>';
   $('board').innerHTML = html;
   positionBoardLine(ks);
@@ -2348,14 +2559,16 @@ const PNL_ITEMS = [
   { key: 'other', lab: '其他', name: '其他', exp: '高阶误差、跳空、改波动率造成的部分。' },
   { key: 'total', lab: '总盈亏', name: '总盈亏（按市值）', exp: '前面几段依次相加，正好等于总盈亏。' }
 ];
-function updateWaterfall(box, b) {
-  if (!box.dataset.built) {
-    box.innerHTML = PNL_ITEMS.map(it => `<button class="wf-col" data-wf="${it.key}"><div class="wf-plot"><i class="wf-bar"></i><span class="wf-v"></span></div><span class="wf-lab">${it.lab}</span></button>`).join('');
-    box.dataset.built = '1';
+function updateWaterfall(box, b, hideDelta) {
+  const items = PNL_ITEMS.filter(it => !(hideDelta && it.key === 'delta'));
+  const key = hideDelta ? 'nodelta' : 'all';
+  if (box.dataset.built !== key) {
+    box.innerHTML = items.map(it => `<button class="wf-col" data-wf="${it.key}"><div class="wf-plot"><i class="wf-bar"></i><span class="wf-v"></span></div><span class="wf-lab">${it.lab}</span></button>`).join('');
+    box.dataset.built = key;
   }
   let cum = 0;
-  const segs = PNL_ITEMS.map(it => {
-    if (it.key === 'total') return { it, from: 0, to: b.total, v: b.total };
+  const segs = items.map(it => {
+    if (it.key === 'total') { const t = hideDelta ? b.total - b.delta : b.total; return { it, from: 0, to: t, v: t }; }
     const v = b[it.key], s = { it, from: cum, to: cum + v, v };
     cum += v;
     return s;
@@ -2363,7 +2576,7 @@ function updateWaterfall(box, b) {
   let lo = 0, hi = 0;
   for (const s of segs) { lo = Math.min(lo, s.from, s.to); hi = Math.max(hi, s.from, s.to); }
   if (hi - lo < 1) hi = lo + 1;
-  const pc = x => (x - lo) / (hi - lo) * 82 + 4;
+  const pc = x => (x - lo) / (hi - lo) * 76 + 8;
   box.style.setProperty('--z', pc(0) + '%');
   [...box.children].forEach((col, i) => {
     const s = segs[i], bar = col.querySelector('.wf-bar'), val = col.querySelector('.wf-v');
@@ -2373,9 +2586,10 @@ function updateWaterfall(box, b) {
     bar.style.height = Math.max(0.6, pc(b1) - pc(b0)) + '%';
     val.textContent = fmt.moneyShort(s.v);
     val.className = 'wf-v ' + fmt.cls(s.v);
-    val.style.bottom = (s.v >= 0 ? Math.min(pc(b1) + 1, 88) : Math.max(pc(b0) - 12, 0)) + '%';
+    // 数值标签永远留在卡片里：正数放柱顶上方、负数放柱底下方，放不下就贴着边
+    val.style.bottom = s.v >= 0 ? `min(calc(${pc(b1)}% + 2px), calc(100% - 13px))` : `max(calc(${pc(b0)}% - 14px), 0px)`;
     const lab = col.querySelector('.wf-lab');
-    lab.innerHTML = s.it.key === 'gamma' && s.v < -0.5 ? `Gamma<b>高买低卖</b>` : s.it.lab;
+    lab.innerHTML = s.it.key === 'gamma' && s.v < -0.5 ? `Gamma<b>高买低卖</b>` : s.it.key === 'total' && hideDelta ? '合计<b style="color:var(--muted)">不含方向</b>' : s.it.lab;
   });
 }
 function renderPnl() {
@@ -2387,13 +2601,37 @@ function renderPnl() {
   tot.className = 'num grow ' + fmt.cls(b.total);
   tween(tot, b.total, v => '总 ' + fmt.money(v));
   $('btnCompare').hidden = !L.biasToggle;
-  $('btnCompare').textContent = '对比两种偏向';
+  $('btnCompare').textContent = '对比';
+  $('btnHideDelta').hidden = false;
+  $('btnHideDelta').setAttribute('aria-pressed', String(!!UI.hideDelta));
+  const tug = G.level <= 4;
   const body = $('pnlBody');
-  if (body.dataset.mode !== 'one' || body.dataset.level !== String(G.level)) {
-    body.dataset.mode = 'one'; body.dataset.level = G.level;
-    body.innerHTML = '<div class="wf" id="wf1"></div>';
+  const mode = 'one' + (tug ? '-tug' : '');
+  if (body.dataset.mode !== mode || body.dataset.level !== String(G.level)) {
+    body.dataset.mode = mode; body.dataset.level = G.level;
+    body.innerHTML = (tug ? `<button class="tug" data-wf="tug" aria-label="Gamma 对 Theta">
+        <span class="tug-row"><span class="tug-l"></span><span class="tug-r"></span></span>
+        <span class="tug-bar"><i class="tug-g"></i><i class="tug-t"></i><em></em></span>
+        <span class="tug-v"></span></button>` : '') + '<div class="wf" id="wf1"></div>';
   }
-  updateWaterfall($('wf1'), b);
+  if (tug) updateTug(body.querySelector('.tug'), b);
+  updateWaterfall($('wf1'), b, UI.hideDelta);
+}
+// Gamma 对 Theta 拔河：高买低卖亏掉的（或低买高卖赚到的） vs 时间损耗赚到的（或付出的）
+function updateTug(el, b) {
+  const g = b.gamma, t = b.theta, m = Math.max(1, Math.abs(g), Math.abs(t));
+  el.querySelector('.tug-l').innerHTML = `Gamma（${g < 0 ? '高买低卖' : '低买高卖'}）<b class="${fmt.cls(g)}">${fmt.money(g)}</b>`;
+  el.querySelector('.tug-r').innerHTML = `Theta（时间损耗）<b class="${fmt.cls(t)}">${fmt.money(t)}</b>`;
+  const gi = el.querySelector('.tug-g'), ti = el.querySelector('.tug-t');
+  gi.style.width = (Math.abs(g) / m * 50) + '%'; gi.className = 'tug-g ' + (g < 0 ? 'neg' : 'pos');
+  ti.style.width = (Math.abs(t) / m * 50) + '%'; ti.className = 'tug-t ' + (t < 0 ? 'neg' : 'pos');
+  const net = g + t;
+  let v;
+  if (Math.abs(g) < 0.5 && Math.abs(t) < 0.5) v = '还没有 Gamma 和 Theta 盈亏。';
+  else if (g < 0 && t > 0) v = net >= 0 ? `时间损耗赚到的比高买低卖亏掉的多 ${fmt.money(net).replace('+', '')}` : `高买低卖亏掉的比时间损耗赚到的多 ${fmt.money(-net).replace('+', '')}`;
+  else if (g > 0 && t < 0) v = net >= 0 ? `低买高卖赚到的比时间损耗付出的多 ${fmt.money(net).replace('+', '')}` : `时间损耗付出的比低买高卖赚到的多 ${fmt.money(-net).replace('+', '')}`;
+  else v = `两段合计 ${fmt.money(net)}`;
+  el.querySelector('.tug-v').textContent = v;
 }
 function comparePop() {
   const runs = UI.runs[G.level] || [], b = Core.breakdown(G);
@@ -2413,7 +2651,7 @@ function compareAfter() {
 }
 function renderGexReadout() {
   $('pnlTitle').textContent = 'GEX 读数';
-  $('btnCompare').hidden = true;
+  $('btnCompare').hidden = true; $('btnHideDelta').hidden = true;
   const v = gexView(G), body = $('pnlBody');
   body.dataset.mode = 'gex'; body.dataset.level = G.level;
   const tot = $('pnlTotal');
@@ -2482,13 +2720,13 @@ function renderInbox() {
   $('inboxTitle').textContent = '客户订单';
   $('pauseWrap').hidden = false;
   $('chkPause').checked = SET.pauseOnOrder;
-  let html = '';
+  let html = '', biasHtml = '';
   if (L.biasToggle) {
-    html += `<div class="seg wrap-seg" id="segBias" role="group" aria-label="客户偏向（切换会重新开始本关）">
+    biasHtml = `<div class="seg wrap-seg" id="segBias" role="group" aria-label="客户偏向（切换会重新开始本关）">
       <button data-bias="buy" aria-pressed="${G.bias === 'buy'}">客户整体在买（你做空 Gamma）</button>
       <button data-bias="sell" aria-pressed="${G.bias === 'sell'}">客户整体在卖（你做多 Gamma）</button></div>`;
   } else {
-    html += `<div class="seg wrap-seg" id="segBias" role="group" aria-label="客户偏向">
+    biasHtml = `<div class="seg wrap-seg" id="segBias" role="group" aria-label="客户偏向">
       <button data-bias="buy" aria-pressed="${G.bias === 'buy'}">多数在买</button>
       <button data-bias="sell" aria-pressed="${G.bias === 'sell'}">多数在卖</button>
       <button data-bias="mixed" aria-pressed="${G.bias === 'mixed'}">随机</button></div>`;
@@ -2511,16 +2749,15 @@ function renderInbox() {
     html += `<div class="ocard" id="ocard" data-id="${o.id}">
       <div class="ask">${orderTitle(o)}</div>
       <div class="det">${lines.map(s => `<span class="num">${s}</span>`).join('')}
-        <span>报价差收入 <b class="pos">${fmt.money(income)}</b> · 接单后指针 → <b>${deltaText(after.delta)}</b>${G.autoHedge ? '（已自动对冲）' : ''}</span>
-        <span>Gamma ${fmt.sint(before.gamma)} → <b class="${fmt.cls(after.gamma)}">${fmt.sint(after.gamma)}</b> 股/每元</span></div>
-      <div class="ttl" title="客户还愿意等多久"><i style="width:${o.ttl * 10}%"></i></div>
-      <div class="row"><button class="btn" data-order="reject">拒绝</button><button class="btn primary" data-order="accept">接单</button></div>
-      <div class="swipe">也可以把卡片向右滑接单、向左滑拒绝 · 客户最多再等 ${o.ttl} 步</div></div>`;
+        <span>报价差收入 <b class="pos">${fmt.money(income)}</b> · 接单后指针 → <b>${deltaText(after.delta)}</b>${G.autoHedge ? '（已自动对冲）' : ''} · Gamma ${fmt.sint(before.gamma)} → <b class="${fmt.cls(after.gamma)}">${fmt.sint(after.gamma)}</b></span></div>
+      <div class="ttl" title="客户最多再等 ${o.ttl} 步"><i style="width:${o.ttl * 10}%"></i></div>
+      <div class="row"><button class="btn" data-order="reject">拒绝 ←</button><button class="btn primary" data-order="accept">→ 接单</button></div></div>`;
   } else {
     html += `<div class="empty">暂时没有客户订单。${G.ended ? '' : '按 ▶ 让时间走起来，客户会陆续来单。'}</div>`;
   }
   const [h, warn] = hintText();
   html += `<p class="ib-hint ${warn ? 'warn' : ''}">下一步：${h}</p>`;
+  html += `<div class="small-note">客户偏向${L.biasToggle ? '（切换会重新开始本关）' : '（只影响之后的订单）'}</div>` + biasHtml;
   if (G.recentOrders.length) html += `<ul class="recent">${G.recentOrders.map(r => `<li>第 ${r.step} 步 · ${r.text} · ${r.result}</li>`).join('')}</ul>`;
   $('inboxBody').dataset.key = 'trade';
   $('inboxBody').innerHTML = html;
@@ -2546,14 +2783,13 @@ function renderGexConsole() {
         <input type="range" id="rngCash" min="0" max="50" step="5" value="${Math.round(G.cashIn * 100)}"></label>`;
     }
     st += `<div class="row"><button class="btn buy" data-push="1" ${G.ended ? 'disabled' : ''}>利好：股价 +0.3%</button><button class="btn sell" data-push="-1" ${G.ended ? 'disabled' : ''}>利空：股价 −0.3%</button></div>`;
-    body.innerHTML = st + '<div id="gxDyn" style="display:grid;gap:8px"></div>';
+    body.innerHTML = '<p class="small-note" id="gxStats"></p>' + st + '<div id="gxDyn" style="display:grid;gap:8px"></div>';
   }
   let html = `<p class="ib-hint ${warn ? 'warn' : ''}">${h}</p>`;
-  if (G.level === 7) html += `<p class="small-note">本局：股价在 Call Wall ±0.5 元内待了 ${G.gx.nearCW} 步，在 Put Wall ±0.5 元内待了 ${G.gx.nearPW} 步；买保险的人一共兑现 ${fmt.int(G.gx.cashed)} 张。</p>`;
-  if (G.level === 8) {
-    const c = G.gx;
-    html += `<p class="small-note">平均每步波动：总 GEX 为正时 ${c.calmN ? fmt.px(c.calmSum / c.calmN) : '—'} 元（${c.calmN} 步），为负时 ${c.wildN ? fmt.px(c.wildSum / c.wildN) : '—'} 元（${c.wildN} 步）。</p>`;
-  }
+  const c = G.gx;
+  $('gxStats').textContent = G.level === 7 ? `本局：Call Wall 旁 ${c.nearCW} 步 · Put Wall 旁 ${c.nearPW} 步 · 兑现 ${fmt.big(c.cashed)} 张`
+    : G.level === 8 ? `每步平均波动：GEX 为正 ${c.calmN ? fmt.px(c.calmSum / c.calmN) : '—'} 元 · 为负 ${c.wildN ? fmt.px(c.wildSum / c.wildN) : '—'} 元`
+    : `本局：最高 ${fmt.px(c.maxS)} · 在 772 上方 ${c.aboveCW} 步`;
   const runs = UI.runs[G.level] || [];
   if (G.level === 9 && runs.length) {
     html += `<div class="tablewrap"><table><thead><tr><th>站位</th><th>盘中仓位</th><th>步数</th><th>最高价</th><th>在 772 上方</th></tr></thead><tbody>` +
@@ -2730,7 +2966,7 @@ function settingsHtml() {
     <div class="keys">
       <span class="kbd">空格</span><span>开始 / 暂停</span>
       <span class="kbd">→</span><span>单步（时间走 1 分钟）</span>
-      <span class="kbd">1</span><span>速度 1x / 2x / 5x（按 1、2、5）</span>
+      <span class="kbd">1</span><span>速度 1x / 2x / 5x（按 1、2、5；按 0 是慢动作）</span>
       <span class="kbd">M</span><span>切换自动 / 手动</span>
       <span class="kbd">↑ ↓</span><span>手动模式下拨动股价 ±0.25（按住 Shift 为 ±1）</span>
       <span class="kbd">Z</span><span>调回 0</span>
@@ -2770,9 +3006,9 @@ function openIntro() {
 }
 function openLabIntro() {
   openPages('GEX 实验室', '摆弄全体做市商的 Gamma', [
-    { t: '这是什么', html: '<p>每个行权价上都有未平仓的期权合约。做市商站在另一边，所以手里有 Gamma。</p><p>把一个行权价上全体做市商的 Gamma 换算成股数，就是这个行权价的 GEX：全体做市商在这个行权价上，股价每动 1 块要被迫买卖多少股。</p><p>柱子向上 = 做市商在这里做多 Gamma（逆着涨跌买卖，偏平静）；向下 = 做空 Gamma（顺着涨跌买卖，偏剧烈）。</p>' },
+    { t: '这是什么', html: '<p>每个行权价上都有未平仓的期权合约。做市商站在另一边，所以手里有 Gamma。</p><p>把一个行权价上全体做市商的 Gamma 换算成股数，就是这个行权价的 GEX：全体做市商在这个行权价上，股价每动 1 块要被迫买卖多少股。</p><p>上面那张图：每个行权价两根柱子，实心是 Call、斜纹是 Put。蓝色朝上 = 做市商在这里做多 Gamma（逆着涨跌买卖，偏平静）；橙色朝下 = 做空 Gamma（顺着涨跌买卖，偏剧烈）。</p><p>下面那张图：假如股价走到这里，总 GEX 会是多少。曲线穿过 0 线的地方就是 Gamma Flip。</p>' },
     { t: '怎么摆弄', html: '<ul><li>按住竖线（当前股价）左右拖：离股价近的柱子会变高，右边读数实时变。</li><li>按住柱子上下拖：改这一格的未平仓张数。</li><li>轻点柱子：切换这一格做市商是买方还是卖方。</li><li>下面的滑块：剩余时间、隐含波动率；还能换预设分布、换站位假设、导入真实数据。</li></ul>' },
-    { t: '读什么', html: '<ul><li>Call Wall：Call 一侧 GEX 最大的行权价。</li><li>Put Wall：Put 一侧 GEX 绝对值最大的行权价。</li><li>Gamma Flip：总 GEX 由正变负的价位（图上竖虚线）。</li><li>打开“看不到的盘中仓位”，会多一条虚线：真实的总 GEX。</li></ul>' }
+    { t: '读什么', html: '<ul><li>Call Wall：Call 一侧 GEX 最大的行权价。</li><li>Put Wall：Put 一侧 GEX 绝对值最大的行权价。</li><li>Gamma Flip：总 GEX 由正变负的价位（下图里的竖虚线）。</li><li>打开“看不到的盘中仓位”，下图会多一条虚线：真实的总 GEX。</li></ul>' }
   ], '<button class="btn primary" data-act="close">开始摆弄</button>');
 }
 function stat(label, val) { return `<div class="stat"><span>${label}</span><b class="${fmt.cls(val)}">${fmt.money(val)}</b></div>`; }
@@ -2822,10 +3058,10 @@ function levelMenu() {
 
 /* ---------- 说明（每个组件右上角的“？”） ---------- */
 const HELP = {
-  stage: () => kindOf() === 'gex'
-    ? '<h3>价格舞台 · GEX</h3><p>蓝线是股价走过的路，横向虚线是各个行权价。</p><p>右侧的横条是每个行权价的 GEX：全体做市商在这个行权价上，股价每动 1 块要被迫买卖多少股。蓝色 = 做市商做多 Gamma（逆着涨跌买卖，把价格往回拉），橙色 = 做空 Gamma（顺着涨跌买卖，推着价格跑）。</p><p>橙色水平虚线是 Gamma Flip：总 GEX 在这里由正变负。价格点旁的小箭头是这一步对冲把价格推动了多少。</p>'
-    : '<h3>价格舞台</h3><p>蓝线是股价走过的路，横向虚线是各个行权价，767 加粗。</p><p>切到“手动”后，按住右端的圆点上下拖，就是你在拨动股价；角落的 −1 / −0.25 / +0.25 / +1 按钮做小幅调整。用电脑时，也可以在舞台上滚动鼠标滚轮，或按键盘 ↑ ↓（每次 0.25，按住 Shift 每次 1）。按 ±1 后，仪表会对比“幽灵指针的预测”和实际结果。</p><p>价格点旁飘出的数字是这一次的变动。第 5 关起，小箭头表示这一步对冲把价格推动了多少。</p>',
-  gauge: () => '<h3>涨跌效果仪表</h3><p><b>指针</b>：整体涨跌效果相当于多少股，这就是 Delta。左边是做空、右边是做多。比如指针在“做空 5,000 股”，股价每涨 1 块，总盈亏大约 −5,000 元。期权不是股票，这是涨跌效果，不是真的持有股票。</p><p><b>两根幽灵指针</b>：股价 +1 和 −1 后，指针会自动跑到哪。两者之间的距离就是 Gamma：股价每动 1 块，指针自动移动多少股。</p><p><b>做空 Gamma</b>：股价一动，指针总往对你不利的方向跑，所以对冲只能涨了买、跌了卖。<b>做多 Gamma</b> 正好相反。</p><p><b>沙漏</b>：每过一步（1 分钟），时间损耗让你赚/亏多少钱，这就是 Theta。</p><p><b>调回 0</b>：用股票把指针拉回中间。<b>数量条</b>：把“拖我”往右拖是买股票、往左拖是卖股票，蓝色预览指针显示成交后指针会到哪，松手后再确认。</p>',
+  stage: () => (UI.speed === 'slow' ? '<p class="lock">现在是慢动作：每一步拆成三拍——① 股价动；② 仪表指针自己跑（这就是 Gamma）；③ 被迫对冲，把指针调回 0（第 5、7–9 关还会看到这笔对冲把股价推了多少）。舞台上方的小标签会一拍一拍写出来。</p>' : '') + (kindOf() === 'gex'
+    ? '<h3>价格舞台 · GEX</h3><p>蓝线是股价走过的路，横向虚线是各个行权价。</p><p>右侧的横条是每个行权价的 GEX：全体做市商在这个行权价上，股价每动 1 块要被迫买卖多少股。蓝色 = 做市商做多 Gamma（逆着涨跌买卖，把价格往回拉），橙色 = 做空 Gamma（顺着涨跌买卖，推着价格跑）。Call Wall、Put Wall 旁边写着数值。</p><p>橙色水平虚线是 Gamma Flip：总 GEX 在这里由正变负。背景也分成两块：淡蓝那边偏平静，淡橙那边偏剧烈，股价所在的那块颜色更深。价格点旁的小箭头是这一步对冲把价格推动了多少。</p>'
+    : '<h3>价格舞台</h3><p>蓝线是股价走过的路，横向虚线是各个行权价，767 加粗。</p><p>切到“手动”后，按住右端的圆点上下拖，就是你在拨动股价；角落的 −1 / −0.25 / +0.25 / +1 按钮做小幅调整。用电脑时，也可以在舞台上滚动鼠标滚轮，或按键盘 ↑ ↓（每次 0.25，按住 Shift 每次 1）。按 ±1 后，仪表会对比“幽灵指针的预测”和实际结果。</p><p>价格点旁飘出的数字是这一次的变动。第 5 关起，小箭头表示这一步对冲把价格推动了多少。</p>'),
+  gauge: () => '<h3>涨跌效果仪表</h3><p><b>指针</b>：整体涨跌效果相当于多少股，这就是 Delta。左边是做空、右边是做多。比如指针在“做空 5,000 股”，股价每涨 1 块，总盈亏大约 −5,000 元。期权不是股票，这是涨跌效果，不是真的持有股票。</p><p><b>两根幽灵指针和箭头</b>：上面那根（涨的颜色）是股价上涨后指针会跑到哪，下面那根（跌的颜色）是股价下跌后。箭头旁直接写着指针会跑多少股，这就是 Gamma：股价每动 1 块，指针自动移动多少股。Gamma 很小时，两根幽灵指针会贴着主指针看不清，这时自动改成“股价 ±3 元后”（或更大）来显示，刻度下方会写明。</p><p><b>淡出的轨迹</b>：股价每动一次，主指针会留下一道淡出的影子，下面那行字写着“股价动了多少 → 指针自己跑了多少股”。</p><p><b>做空 Gamma</b>：股价一动，指针总往对你不利的方向跑，所以对冲只能涨了买、跌了卖。<b>做多 Gamma</b> 正好相反。</p><p><b>沙漏</b>：每过一步（1 分钟），时间损耗让你赚/亏多少钱，这就是 Theta。</p><p><b>调回 0</b>：用股票把指针拉回中间。<b>数量条</b>：把“拖我”往右拖是买股票、往左拖是卖股票，蓝色预览指针显示成交后指针会到哪，松手后再确认。</p>',
   board: () => kindOf() === 'gex'
     ? '<h3>GEX 棋盘</h3><p>每一行是一个行权价，左格 Call、右格 Put。格子里是未平仓张数和做市商的站位（假设）。</p><p>格子颜色越深，这一格的 GEX 越大；橙色表示做市商在这一格做空 Gamma。点格子看这一格的 GEX：股价每动 1 块，全体做市商因为它要买卖多少股。</p>'
     : '<h3>期权棋盘</h3><p>每一行是一个行权价（772 在上、762 在下），左格 Call（看涨）、右格 Put（看跌）。黑色横线是现在的股价。</p><p>格子里的小字是理论价。你的持仓用筹码表示：“买”是买入、“卖”是卖出，数字是张数。</p><p>格子颜色越深，这一格持仓的 Gamma 越大：离股价越近、越临近到期越深。</p><p>点一格：看这个期权每张的涨跌效果和 Gamma，向其他做市商买卖；第 2 关起还会算出抵掉当前 Gamma 需要多少张。</p>',
@@ -2835,7 +3071,7 @@ const HELP = {
   inbox: () => kindOf() === 'gex'
     ? '<h3>控制台</h3><p>这里推一把价格（利好 / 利空），调本关的参数，看最近发生的事。第 9 关在这里切换做市商的站位假设，以及“看不到的盘中仓位”。</p>'
     : '<h3>客户订单</h3><p>客户订单会进入这里。卡片写着客户要买/卖什么、你的成交价、报价差收入，以及接单后指针会到哪。</p><p>按“接单 / 拒绝”，或者把卡片向右滑接单、向左滑拒绝。下面的进度条是客户还愿意等多久。</p><p>“来单暂停”打开时，来新订单会自动暂停时间。</p>',
-  labchart: () => '<h3>GEX 分布图</h3><p>横轴是股价。每个行权价两根柱子：左 Call、右 Put。柱子高度是这一格的 GEX：全体做市商在这个行权价上，股价每动 1 块要被迫买卖多少股。向上 = 做市商做多 Gamma，向下 = 做空 Gamma。</p><p>黑线是“总 GEX 随股价变化”（右轴）：假设股价在每个位置、其他不变，重算所有格子之和。黑线穿过 0 的地方就是 Gamma Flip（竖虚线）。</p><p>竖线是当前股价，按住它左右拖。按住柱子上下拖可以改未平仓张数，轻点柱子切换做市商是买方还是卖方（第 6 关里只能看、不能改）。</p>',
+  labchart: () => '<h3>两张图，共用一条横轴（股价）</h3><p><b>上图：现在这一刻，每个行权价的 GEX。</b>每个行权价两根柱子，实心是 Call、斜纹是 Put。柱子长短 = 全体做市商在这个行权价上，股价每动 1 块要被迫买卖多少股。蓝色朝上 = 做市商做多 Gamma，橙色朝下 = 做空 Gamma。</p><p><b>下图：假如股价走到这里，总 GEX 会是多少。</b>假设股价在横轴每个位置、其他不变，把所有格子重算一遍加起来。曲线穿过粗的 0 线的地方就是 Gamma Flip（竖虚线）。曲线上的圆点是“现在的总 GEX”。</p><p>注意：上图的柱子只对应当前股价；下图的曲线不是柱子相加，而是股价换位置后重新算的结果。</p><p>竖线是当前股价，按住它左右拖，两张图同步移动。按住柱子上下拖可以改未平仓张数，轻点柱子切换做市商是买方还是卖方（第 6 关里只能看、不能改）。</p>',
   labside: () => '<h3>读数</h3><p>总 GEX：所有格子之和。股价每涨 1 块，全体做市商要买或卖多少股，是按完整重新定价算的。</p><p>按金额：股价每动 1%，要买卖多少钱 = GEX × 股价 × 1% × 股价。</p><p>Call Wall、Put Wall、Gamma Flip 都是在当前站位假设下算出来的。</p>',
   labctrl: () => kindOf() === 'quiz' && UI.view !== 'lab'
     ? '<h3>题目</h3><p>按顺序回答四道题。点图上的柱子回答前两题；第三题选方向和数量；第四题拖动竖线找到 Gamma Flip，再按“就在这里”。</p>'
@@ -2857,91 +3093,116 @@ function renderLab(st, mode) {
   $('labCtrlTitle').textContent = quiz ? '题目' : '摆弄';
   if (quiz) renderQuiz(st, v); else renderLabCtrl(st);
 }
+// Put 柱子用斜纹，Call 用实心；颜色只表示正负（蓝 = 做市商做多 Gamma，橙 = 做空 Gamma）
+function hatchPattern(ctx, color) {
+  const c = document.createElement('canvas'); c.width = c.height = 8;
+  const g = c.getContext('2d');
+  g.fillStyle = color; g.globalAlpha = 0.22; g.fillRect(0, 0, 8, 8); g.globalAlpha = 1;
+  g.strokeStyle = color; g.lineWidth = 2.2;
+  g.beginPath(); g.moveTo(-2, 10); g.lineTo(10, -2); g.moveTo(-2, 2); g.lineTo(2, -2); g.moveTo(6, 10); g.lineTo(10, 6); g.stroke();
+  return ctx.createPattern(c, 'repeat');
+}
+// 上下两张图共用横轴（股价）：上 = 现在这一刻每个行权价的 GEX；下 = 假如股价走到这里，总 GEX 是多少
 function drawLab(st, v) {
   const r = canvasCtx($('labCanvas')); if (!r) return;
   const { ctx, w, h } = r, tk = tokens();
-  const pad = { l: 56, r: 56, t: 30, b: 30 };
+  const pad = { l: 58, r: 14, t: 44, b: 30 };
   const lo = v.lo, hi = v.hi;
   const X = x => pad.l + (x - lo) / (hi - lo) * (w - pad.l - pad.r);
+  const gap = 30, inner = h - pad.t - pad.b - gap;
+  const topH = inner * 0.54, botH = inner - topH;
+  const bTop = pad.t, bBot = pad.t + topH, cTop = bBot + gap, cBot = cTop + botH;
+  const y0 = (bTop + bBot) / 2, half = topH / 2 * 0.9, c0 = (cTop + cBot) / 2, chalf = botH / 2 * 0.86;
   const rows = v.rows.filter(rw => rw.K >= lo && rw.K <= hi);
-  const drag = st._drag;
+  const drag = st._drag, hide = st._hide || {};
   const barMax = (drag && drag.barMax) || Math.max(1, ...rows.map(rw => Math.max(Math.abs(rw.call), Math.abs(rw.put))));
   const cur = v.curve;
   const curveMax = Math.max(1, ...cur.pts.map(p => Math.max(Math.abs(p.v), p.real == null ? 0 : Math.abs(p.real))));
-  const y0 = pad.t + (h - pad.t - pad.b) / 2, half = (h - pad.t - pad.b) / 2 * 0.92;
-  const Yb = val => y0 - val / barMax * half, Yc = val => y0 - val / curveMax * half;
-  ctx.font = '' + fpx(10) + 'px ' + tk.font; ctx.lineWidth = 1;
-  for (const f of [-1, -0.5, 0.5, 1]) {
-    ctx.strokeStyle = tk.line; ctx.beginPath(); ctx.moveTo(pad.l, y0 - f * half); ctx.lineTo(w - pad.r, y0 - f * half); ctx.stroke();
-  }
-  ctx.strokeStyle = tk.muted; ctx.beginPath(); ctx.moveTo(pad.l, y0); ctx.lineTo(w - pad.r, y0); ctx.stroke();
-  ctx.fillStyle = tk.muted; ctx.textBaseline = 'middle';
-  ctx.textAlign = 'right';
-  ctx.fillText(fmt.sbig(barMax), pad.l - 5, y0 - half); ctx.fillText('0', pad.l - 5, y0); ctx.fillText(fmt.sbig(-barMax), pad.l - 5, y0 + half);
-  ctx.textAlign = 'left';
-  ctx.fillText(fmt.sbig(curveMax), w - pad.r + 5, y0 - half); ctx.fillText('0', w - pad.r + 5, y0); ctx.fillText(fmt.sbig(-curveMax), w - pad.r + 5, y0 + half);
-  ctx.textAlign = 'left'; ctx.fillText('单格 GEX（股/每元）', 4, 10);
-  ctx.textAlign = 'right'; ctx.fillText('总 GEX', w - 4, 10);
-  // 柱子：每个行权价左 Call、右 Put
+  const Yb = val => y0 - val / barMax * half, Yc = val => c0 - val / curveMax * chalf;
+  const font = (wt, n) => (wt ? wt + ' ' : '') + fpx(n) + 'px ' + tk.font;
+  // 标题
+  ctx.fillStyle = tk.ink; ctx.font = font(800, 11); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText('现在这一刻，每个行权价的 GEX（股/每元）', 4, 12);
+  ctx.fillText('假如股价走到这里，总 GEX 会是多少', 4, cTop - 12);
+  // 网格与刻度
+  const guides = (zc, hh, mx) => {
+    ctx.lineWidth = 1;
+    for (const f of [-1, 1]) { ctx.strokeStyle = tk.line; ctx.beginPath(); ctx.moveTo(pad.l, zc - f * hh); ctx.lineTo(w - pad.r, zc - f * hh); ctx.stroke(); }
+    ctx.fillStyle = tk.muted; ctx.font = font('', 10); ctx.textAlign = 'right';
+    ctx.fillText(fmt.sbig(mx), pad.l - 5, zc - hh); ctx.fillText('0', pad.l - 5, zc); ctx.fillText(fmt.sbig(-mx), pad.l - 5, zc + hh);
+  };
+  guides(y0, half, barMax); guides(c0, chalf, curveMax);
+  ctx.strokeStyle = tk.muted; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad.l, y0); ctx.lineTo(w - pad.r, y0); ctx.stroke();
+  ctx.strokeStyle = tk.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(pad.l, c0); ctx.lineTo(w - pad.r, c0); ctx.stroke();
+  // 柱子
   const ks = rows.map(rw => rw.K);
   let minGap = Infinity;
   for (let i = 1; i < ks.length; i++) minGap = Math.min(minGap, X(ks[i]) - X(ks[i - 1]));
   if (!isFinite(minGap)) minGap = 40;
   const bw = Math.max(3, Math.min(22, minGap * 0.42));
   const hits = [], cells = labCells(st);
+  const pat = { pos: hatchPattern(ctx, tk.accent), neg: hatchPattern(ctx, tk.warn) };
   for (const rw of rows) {
     const xc = X(rw.K);
-    for (const [type, val, color, x0] of [['C', rw.call, tk.call, xc - bw - 1], ['P', rw.put, tk.put, xc + 1]]) {
-      const yv = Yb(val), top = Math.min(y0, yv), hgt = Math.max(1.5, Math.abs(yv - y0));
-      ctx.fillStyle = color; ctx.fillRect(x0, top, bw, hgt);
+    for (const [type, val, x0] of [['C', rw.call, xc - bw - 1], ['P', rw.put, xc + 1]]) {
+      const col = val >= 0 ? tk.accent : tk.warn, yv = Yb(val), top = Math.min(y0, yv), hgt = Math.max(1.5, Math.abs(yv - y0));
+      ctx.fillStyle = type === 'C' ? col : pat[val >= 0 ? 'pos' : 'neg'];
+      ctx.fillRect(x0, top, bw, hgt);
+      if (type === 'P') { ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.strokeRect(x0 + 0.5, top + 0.5, bw - 1, Math.max(0, hgt - 1)); }
       const mine = cells.filter(c => c.K === rw.K && c.type === type);
-      if (mine.some(c => c.side)) { ctx.strokeStyle = tk.ink; ctx.lineWidth = 1.5; ctx.setLineDash([3, 2]); ctx.strokeRect(x0 + 0.75, top + 0.75, bw - 1.5, Math.max(0, hgt - 1.5)); ctx.setLineDash([]); }
-      if (st.selected && st.selected.K === rw.K && st.selected.type === type) { ctx.strokeStyle = tk.accent; ctx.lineWidth = 2; ctx.strokeRect(x0 - 2, top - 2, bw + 4, hgt + 4); }
+      if (mine.some(c => c.side)) { ctx.strokeStyle = tk.ink; ctx.lineWidth = 1.5; ctx.setLineDash([3, 2]); ctx.strokeRect(x0 - 1.5, top - 1.5, bw + 3, hgt + 3); ctx.setLineDash([]); }
+      if (st.selected && st.selected.K === rw.K && st.selected.type === type) { ctx.strokeStyle = tk.ink; ctx.lineWidth = 2; ctx.strokeRect(x0 - 3, top - 3, bw + 6, hgt + 6); }
       hits.push({ K: rw.K, type, x0, x1: x0 + bw });
     }
   }
-  ctx.fillStyle = tk.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.font = '' + fpx(10) + 'px ' + tk.font;
+  // 行权价刻度（两张图共用，画在最底下）
+  ctx.fillStyle = tk.muted; ctx.textAlign = 'center'; ctx.font = font('', 10);
   let lastX = -1e9;
-  for (const k of ks) { const x = X(k); if (x - lastX >= 28) { ctx.fillText(String(k), x, h - pad.b + 14); lastX = x; } }
+  for (const k of ks) { const x = X(k); if (x - lastX >= 28) { ctx.fillText(String(k), x, h - pad.b + 12); lastX = x; } }
   // 墙
-  const flag = (K, text, color, ty) => {
-    ctx.font = '800 ' + fpx(10) + 'px ' + tk.font;
-    const half = ctx.measureText(text).width / 2 + 2;
-    const x = Math.max(half + 2, Math.min(w - half - 2, X(K)));
-    ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(text, x, ty);
-    ctx.beginPath(); ctx.moveTo(X(K) - 4, 27); ctx.lineTo(X(K) + 4, 27); ctx.lineTo(X(K), 31); ctx.closePath(); ctx.fill();
+  const close = v.callWall != null && v.putWall != null && Math.abs(X(v.callWall) - X(v.putWall)) < 120;
+  const flag = (K, text, ty) => {
+    ctx.font = font(800, 10);
+    const hw = ctx.measureText(text).width / 2 + 2, x = Math.max(hw + 2, Math.min(w - hw - 2, X(K)));
+    ctx.fillStyle = tk.ink; ctx.textAlign = 'center'; ctx.fillText(text, x, ty);
+    ctx.beginPath(); ctx.moveTo(X(K) - 4, bTop - 6); ctx.lineTo(X(K) + 4, bTop - 6); ctx.lineTo(X(K), bTop - 1); ctx.closePath(); ctx.fill();
   };
-  const hide = st._hide || {};
-  const close = v.callWall != null && v.putWall != null && Math.abs(X(v.callWall) - X(v.putWall)) < 110;
-  if (!hide.cw && v.callWall != null && v.callWall >= lo && v.callWall <= hi) flag(v.callWall, v.callWallShort ? 'Call Wall（这里做市商做空 Gamma，不是天花板）' : 'Call Wall ' + v.callWall, v.callWallShort ? tk.warn : tk.call, 22);
-  if (!hide.pw && v.putWall != null && v.putWall >= lo && v.putWall <= hi) flag(v.putWall, 'Put Wall ' + v.putWall, tk.put, close && !hide.cw ? 10 : 22);
-  // 总 GEX 曲线（右轴）
+  if (!hide.cw && v.callWall != null && v.callWall >= lo && v.callWall <= hi) flag(v.callWall, v.callWallShort ? 'Call Wall（这里做市商做空 Gamma，不是天花板）' : 'Call Wall ' + v.callWall, bTop - 14);
+  if (!hide.pw && v.putWall != null && v.putWall >= lo && v.putWall <= hi) flag(v.putWall, 'Put Wall ' + v.putWall, close && !hide.cw ? bTop - 26 : bTop - 14);
+  // 总 GEX 曲线（下图）
+  ctx.save(); ctx.beginPath(); ctx.rect(pad.l, cTop - 2, w - pad.l - pad.r, botH + 4); ctx.clip();
   ctx.beginPath(); cur.pts.forEach((p, i) => i ? ctx.lineTo(X(p.x), Yc(p.v)) : ctx.moveTo(X(p.x), Yc(p.v)));
-  ctx.strokeStyle = tk.ink; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = tk.accent; ctx.lineWidth = 2.2; ctx.stroke();
   if (st.showHidden) {
     ctx.beginPath(); cur.pts.forEach((p, i) => i ? ctx.lineTo(X(p.x), Yc(p.real)) : ctx.moveTo(X(p.x), Yc(p.real)));
     ctx.strokeStyle = tk.warn; ctx.setLineDash([6, 4]); ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
   }
-  const vline = (x, color, label, yLab) => {
-    ctx.strokeStyle = color; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(X(x), pad.t); ctx.lineTo(X(x), h - pad.b); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = color; ctx.font = '800 ' + fpx(10) + 'px ' + tk.font; ctx.textAlign = X(x) > w - pad.r - 70 ? 'right' : 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(label, X(x) + (ctx.textAlign === 'left' ? 4 : -4), yLab);
+  ctx.restore();
+  const vline = (x, label, yLab) => {
+    ctx.strokeStyle = tk.warn; ctx.setLineDash([5, 4]); ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(X(x), cTop); ctx.lineTo(X(x), cBot); ctx.stroke(); ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(X(x), c0, 4, 0, Math.PI * 2); ctx.fillStyle = tk.warn; ctx.fill();
+    ctx.font = font(800, 10); ctx.textAlign = X(x) > w - pad.r - 90 ? 'right' : 'left';
+    ctx.fillText(label, X(x) + (ctx.textAlign === 'left' ? 6 : -6), yLab);
   };
-  if (v.flip != null && !hide.flip) vline(v.flip, tk.warn, `Gamma Flip ${fmt.px(v.flip)}`, h - pad.b - 10);
-  if (st.showHidden && v.realFlip != null && (v.flip == null || Math.abs(v.realFlip - v.flip) > 0.05)) vline(v.realFlip, tk.warn, `真实翻转点 ${fmt.px(v.realFlip)}`, h - pad.b - 24);
-  // 当前股价竖线（可拖）
+  if (v.flip != null && !hide.flip) vline(v.flip, `Gamma Flip ${fmt.px(v.flip)}`, cBot - 8);
+  if (st.showHidden && v.realFlip != null && (v.flip == null || Math.abs(v.realFlip - v.flip) > 0.05)) vline(v.realFlip, `真实翻转点 ${fmt.px(v.realFlip)}`, cBot - 22);
+  // 当前股价竖线（两张图同步，可拖）
   const px = X(st.S);
-  ctx.strokeStyle = tk.accent; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.moveTo(px, pad.t + 4); ctx.lineTo(px, h - pad.b); ctx.stroke();
-  ctx.beginPath(); ctx.arc(px, Yc(v.total), 5, 0, Math.PI * 2); ctx.fillStyle = tk.ink; ctx.fill();
+  ctx.strokeStyle = tk.ink; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(px, bTop); ctx.lineTo(px, bBot); ctx.moveTo(px, cTop); ctx.lineTo(px, cBot); ctx.stroke();
+  const cy = Yc(v.total);
+  ctx.beginPath(); ctx.arc(px, cy, 5.5, 0, Math.PI * 2); ctx.fillStyle = v.total >= 0 ? tk.accent : tk.warn; ctx.fill();
+  ctx.strokeStyle = tk.panel; ctx.lineWidth = 2; ctx.stroke();
+  ctx.font = font(800, 11); ctx.fillStyle = v.total >= 0 ? tk.accent : tk.warn;
+  ctx.textAlign = px > w - pad.r - 120 ? 'right' : 'left';
+  ctx.fillText(`现在 ${fmt.sbig(v.total)}`, px + (ctx.textAlign === 'left' ? 9 : -9), Math.max(cTop + 8, Math.min(cBot - 8, cy - 12)));
   const label = `◀ 股价 ${fmt.px(st.S)} ▶`;
-  ctx.font = '800 ' + fpx(11) + 'px ' + tk.font;
-  const lw = ctx.measureText(label).width + 14, lx = Math.max(2, Math.min(w - lw - 2, px - lw / 2)), ly = h - pad.b + 3;
-  ctx.fillStyle = tk.accent; roundRect(ctx, lx, ly, lw, 22, 8); ctx.fill();
-  ctx.fillStyle = tk.panel; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, lx + lw / 2, ly + 11);
-  st._layout = { pad, lo, hi, w, h, y0, half, barMax, curveMax, hits, X };
+  ctx.font = font(800, 11);
+  const lw = ctx.measureText(label).width + 14, lx = Math.max(2, Math.min(w - lw - 2, px - lw / 2)), ly = h - pad.b + 4;
+  ctx.fillStyle = tk.ink; roundRect(ctx, lx, ly, lw, 22, 8); ctx.fill();
+  ctx.fillStyle = tk.panel; ctx.textAlign = 'center'; ctx.fillText(label, lx + lw / 2, ly + 11);
+  st._layout = { pad, lo, hi, w, h, y0, half, barMax, curveMax, hits, X, barTop: bTop, barBot: bBot };
 }
 function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
@@ -3027,10 +3288,10 @@ function quizHide() {
   return { cw: !done(0), pw: !done(1), move: !done(2), flip: !done(3) };
 }
 const QUIZ = [
-  { q: '第 1 题：点出 Call Wall', hint: 'Call Wall 是 Call 那一侧 GEX 最大的行权价。看 Call 柱子（青色）哪一根离 0 线最远，点它。' },
-  { q: '第 2 题：点出 Put Wall', hint: 'Put Wall 是 Put 那一侧 GEX 绝对值最大的行权价。看 Put 柱子（紫色）哪一根离 0 线最远，点它。' },
-  { q: '第 3 题：股价从这里涨 1 块，全体做市商要买还是卖、大约多少股？', hint: '看右边的总 GEX：它就是“股价每动 1 块，全体做市商要被迫买卖多少股”。正数说明他们整体做多 Gamma。' },
-  { q: '第 4 题：拖动股价，找出 Gamma Flip', hint: '按住图上的竖线左右拖，看右边“总 GEX”什么时候由正变负。停在翻转点附近，按“就在这里”。' }
+  { q: '第 1 题：点出 Call Wall', how: '在上面那张图里点一根柱子。', hint: 'Call Wall 是 Call（实心柱子）那一侧 GEX 最大的行权价：比一比实心柱子的长短。' },
+  { q: '第 2 题：点出 Put Wall', how: '在上面那张图里点一根柱子。', hint: 'Put Wall 是 Put（斜纹柱子）那一侧 GEX 绝对值最大的行权价：比一比斜纹柱子离 0 线有多远，不管朝上还是朝下。' },
+  { q: '第 3 题：股价从这里涨 1 块，全体做市商要买还是卖、大约多少股？', how: '选方向和数量，再按“提交”。', hint: '看右边的总 GEX：它就是“股价每动 1 块，全体做市商要被迫买卖多少股”。正数说明他们整体做多 Gamma。' },
+  { q: '第 4 题：拖动股价，找出 Gamma Flip', how: '按住图里的竖线左右拖，找到后按“就在这里”。', hint: '看下面那张图：曲线穿过粗的 0 线的地方，就是总 GEX 由正变负的位置。' }
 ];
 function round2(x) { if (!(x > 0)) return 0; const p = Math.pow(10, Math.floor(Math.log10(x)) - 1); return Math.round(x / p) * p; }
 function prepQ3(st) {
@@ -3048,7 +3309,8 @@ function renderQuiz(st, v) {
   const box = $('labCtrl');
   box.dataset.key = 'quiz';
   const z = G.quiz, item = QUIZ[Math.min(z.i, 3)];
-  let html = `<div class="quiz"><div class="q">${item.q}</div><p class="small-note">${item.hint}</p>`;
+  let html = `<div class="quiz"><div class="q">${item.q}</div><p class="small-note">${item.how}</p>` +
+    (z.fb ? '' : z.showHint ? `<p class="fb ok">提示：${item.hint}</p>` : '<button class="btn small ghost" data-qa="hint">提示</button>');
   if (z.i === 2 && !z.fb) {
     if (!z.opts) prepQ3(st);
     html += `<div class="choice"><button data-qs="buy" aria-pressed="${z.side === 'buy'}">买入</button><button data-qs="sell" aria-pressed="${z.side === 'sell'}">卖出</button></div>
@@ -3096,7 +3358,7 @@ function quizHere() {
 }
 function quizNext() {
   const z = G.quiz;
-  z.fb = null; z.i++;
+  z.fb = null; z.i++; z.showHint = false;
   if (z.i >= 4) { endLevel('quiz'); return; }
   render();
 }
@@ -3130,8 +3392,8 @@ function onLabDown(e) {
   $('labCanvas').setPointerCapture(e.pointerId);
   st._frozen = [L.lo, L.hi];
   const px = L.X(st.S);
-  const hit = L.hits.find(hb => x >= hb.x0 - 3 && x <= hb.x1 + 3 && y > L.pad.t && y < L.h - L.pad.b);
-  if (Math.abs(x - px) < 16 || y > L.h - L.pad.b || !hit) { st._drag = { mode: 'price' }; setLabS(st, x); }
+  const hit = L.hits.find(hb => x >= hb.x0 - 3 && x <= hb.x1 + 3 && y > L.barTop - 4 && y < L.barBot + 4);
+  if (Math.abs(x - px) < 16 || !hit) { st._drag = { mode: 'price' }; setLabS(st, x); }
   else st._drag = { mode: 'barP', hit, y0: y, barMax: L.barMax };
   e.preventDefault();
 }
@@ -3192,6 +3454,7 @@ function onLabCtrlTap(data) {
     else if (data.qa === 'submit') quizSubmit3();
     else if (data.qa === 'here') quizHere();
     else if (data.qa === 'next') quizNext();
+    else if (data.qa === 'hint') { z.showHint = true; render(); }
     return;
   }
   const st = LAB;
@@ -3325,7 +3588,13 @@ function scheduleRender() {
   if (rafPending) return;
   rafPending = requestAnimationFrame(() => { rafPending = 0; render(); });
 }
-function setSpeed(v) { UI.speed = v; if (UI.running) schedule(); renderTop(); }
+function setSpeed(v) {
+  if (UI.slow) { const sl = UI.slow; UI.slow = null; sl.finish(); }
+  UI.speed = v;
+  if (v !== 'slow') UI.beatText = null;
+  if (UI.running) schedule();
+  render();
+}
 function setMode(v) { if (!G || G.ended) return; G.mode = v; render(); }
 function stockWhy(q) {
   const d = Core.greeks(G).delta;
@@ -3347,6 +3616,10 @@ function wfPop(key) {
   return `<h3>${it.name}</h3><p class="bigv ${fmt.cls(v)}">${fmt.money(v)}</p><p>${it.exp}</p>` +
     (key === 'gamma' && v < -0.5 ? '<p class="lock">现在这一段是负的：这就是做空 Gamma 时，对冲被迫高买低卖的亏损。</p>' : '') +
     (key === 'total' ? `<p class="small-note">前五段加起来 ${fmt.money(b.parts)}，加上“其他” ${fmt.money(b.other)}，等于总盈亏 ${fmt.money(b.total)}。</p>` : '');
+}
+function tugPop() {
+  const b = Core.breakdown(G);
+  return `<h3>Gamma 对 Theta</h3><p>左边是 Gamma 盈亏：做空 Gamma 时，对冲被迫涨了买、跌了卖，这就是高买低卖亏掉的钱（做多 Gamma 时反过来是低买高卖赚到的）。</p><p>右边是 Theta 盈亏：期权每过一分钟自己变便宜一点，卖出期权赚这部分、买入期权付这部分。</p><p>两边一正一负。股价实际波动和定价用的波动率一样时，平均下来正好抵消；哪边更长，说明这段时间股价比预期动得多还是少。</p><p class="small-note">现在：Gamma ${fmt.money(b.gamma)}，Theta ${fmt.money(b.theta)}，合计 ${fmt.money(b.gamma + b.theta)}。</p>`;
 }
 function applyLook() {
   const r = document.documentElement;
@@ -3471,6 +3744,7 @@ function onKey(e) {
   if (k === ' ' && tag !== 'BUTTON') { e.preventDefault(); if (UI.running) { stop(); render(); } else play(); }
   else if (k === 'ArrowRight') { e.preventDefault(); if (!UI.running) doStep(); }
   else if (k === '1' || k === '2' || k === '5') setSpeed(Number(k));
+  else if (k === '0') setSpeed('slow');
   else if (k === 'm') setMode(G.mode === 'auto' ? 'manual' : 'auto');
   else if ((k === 'ArrowUp' || k === 'ArrowDown') && G.mode === 'manual' && !G.ended) {
     e.preventDefault();
@@ -3486,8 +3760,8 @@ function bind() {
   $('btnStep').innerHTML = ICON.step; $('btnSettings').innerHTML = ICON.gear; $('btnLog').innerHTML = ICON.list; $('drClose').innerHTML = ICON.close;
   $('btnPlay').onclick = () => { if (UI.running) { stop(); render(); } else play(); };
   $('btnStep').onclick = doStep;
-  $('segSpeed').onclick = e => { const b = e.target.closest('button'); if (b && !b.disabled) setSpeed(Number(b.dataset.v)); };
-  $('btnSpeed').onclick = () => setSpeed(UI.speed === 1 ? 2 : UI.speed === 2 ? 5 : 1);
+  $('segSpeed').onclick = e => { const b = e.target.closest('button'); if (b && !b.disabled) setSpeed(b.dataset.v === 'slow' ? 'slow' : Number(b.dataset.v)); };
+  $('btnSpeed').onclick = () => { const order = ['slow', 1, 2, 5]; setSpeed(order[(order.indexOf(UI.speed) + 1) % order.length]); };
   $('segMode').onclick = e => { const b = e.target.closest('button'); if (b && !b.disabled) setMode(b.dataset.v); };
   $('btnMode').onclick = () => setMode(G.mode === 'auto' ? 'manual' : 'auto');
   $('segView').onclick = e => { const b = e.target.closest('button'); if (b) setView(b.dataset.v); };
@@ -3552,6 +3826,11 @@ function bind() {
   // 棋盘
   onTap($('board'), data => {
     if (data.cell) { openCell(data.cell[0], Number(data.cell.slice(1))); return; }
+    if (data.gwin) {
+      const step = Math.max(2, Math.floor((($('board').clientHeight || 300) - 22) / 34) - 3);
+      UI.gexWin = (UI.gexWin || 0) + Number(data.gwin) * step; UI.gexWinTouch = Date.now();
+      renderBoard(); return;
+    }
     if (data.gcell) {
       const t = data.gcell[0], K = Number(data.gcell.slice(1));
       openPop(document.querySelector(`[data-gcell="${data.gcell}"]`), () => gexCellPop(t, K), 'gcell');
@@ -3565,8 +3844,10 @@ function bind() {
   });
 
   // 盈亏条
+  $('btnHideDelta').onclick = () => { UI.hideDelta = !UI.hideDelta; render(); };
   $('btnCompare').onclick = () => { openPop($('btnCompare'), comparePop, 'cmp'); UI.pop.live = true; UI.pop.after = compareAfter; compareAfter(); placePop(); };
   onTap($('pnlBody'), (data, el) => {
+    if (data.wf === 'tug') { openPop(document.querySelector('#pnlBody .tug'), tugPop, 'tug'); UI.pop.live = true; return; }
     if (data.wf) openPop(document.querySelector(`#pnlBody [data-wf="${data.wf}"]`) || el, () => wfPop(data.wf), 'wf');
   });
 
@@ -3669,7 +3950,7 @@ function bind() {
     const st = activeLab(), L = st && st._layout;
     if (!L || st._drag || e.pointerType !== 'mouse') return;
     const { x, y } = labPoint(e);
-    const hit = L.hits.find(hb => x >= hb.x0 - 3 && x <= hb.x1 + 3 && y > L.pad.t && y < L.h - L.pad.b);
+    const hit = L.hits.find(hb => x >= hb.x0 - 3 && x <= hb.x1 + 3 && y > L.barTop - 4 && y < L.barBot + 4);
     $('labCanvas').style.cursor = Math.abs(x - L.X(st.S)) < 16 || !hit ? 'ew-resize' : (st.readOnly ? 'pointer' : 'ns-resize');
   });
   document.querySelectorAll('.ibtn[aria-label]').forEach(b => { b.title = b.getAttribute('aria-label'); });
